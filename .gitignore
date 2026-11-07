@@ -6,3 +6,5 @@ dist/
 build/
 *.app/
 .stir_config_dir
+.claude/
+build/

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Minimal observable-property machinery (no Qt), so view models are testable anywhere.
 
 * ``Observed`` is a descriptor: assigning a *different* value marks the property as changed.

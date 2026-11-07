@@ -6,25 +6,16 @@ name: tests
 
 on:
   push:
-    # every branch, so pushed work branches are tested before they are merged
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.html'
-      - '**/*.htm'
-      - '**/*.tex'
-      - 'CITATION.cff'
-      - 'docs/**'
-  pull_request:
     branches:
       - main
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.html'
-      - '**/*.htm'
-      - '**/*.tex'
-      - 'CITATION.cff'
-      - 'docs/**'
+  pull_request:
+    # pull requests into any branch (stacked PRs included): every PR is tested once, before merging
   workflow_dispatch:
+  # build.yml calls this before publishing a release
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   pytest:

@@ -1,0 +1,7 @@
+PETProjectionDataVisualization
+Copyright 2026 Robert Twyman Skelly
+
+This viewer was first developed inside STIR (Software for Tomographic Image Reconstruction,
+https://github.com/UCL/STIR) as examples/python/projdata_viewer, and was split out into this
+repository. It talks to STIR only through STIR's Python bindings at run time; it does not
+contain or redistribute STIR. STIR is distributed under its own licences (mostly Apache-2.0).

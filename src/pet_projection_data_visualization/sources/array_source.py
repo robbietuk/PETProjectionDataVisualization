@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Source backed by numpy arrays and ``.npy``/``.npz`` files (no STIR needed)."""
 from __future__ import annotations
 

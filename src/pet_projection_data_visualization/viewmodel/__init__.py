@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """VIEWMODEL layer: presentation state and commands. No Qt, no pyqtgraph, no STIR."""
 from .observable import ObservableObject, Observed
 from .bindings import BindingRegistry, observed_names
