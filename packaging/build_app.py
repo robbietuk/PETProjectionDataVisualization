@@ -41,6 +41,12 @@ def freeze(dist: Path, work: Path) -> Path:
     env = dict(os.environ)
     if sys.platform == "win32":  # conda DLLs (STIR's dependencies, Qt) live in Library/bin
         env["PATH"] = os.pathsep.join([str(Path(sys.prefix) / "Library" / "bin"), env.get("PATH", "")])
+    elif sys.platform.startswith("linux"):
+        # Make PyInstaller's dependency resolution prefer the env's libraries over same-named system
+        # ones: otherwise it bundles Ubuntu's older libcrypto.so.3, and STIR's libs2n then fails with
+        # "version `OPENSSL_3.4.0' not found".
+        env["LD_LIBRARY_PATH"] = os.pathsep.join(
+            p for p in (str(Path(sys.prefix) / "lib"), env.get("LD_LIBRARY_PATH", "")) if p)
     run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--log-level", "WARN",
         "--distpath", dist, "--workpath", work, HERE / f"{NAME}.spec", env=env)
     if sys.platform == "darwin":
