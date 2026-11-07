@@ -1,4 +1,5 @@
 # Build the wheel and source archive, check they install and run in a clean environment,
+# on Ubuntu, macOS and Windows (standard GitHub-hosted runners, free for public repositories),
 # and publish on a version tag (TestPyPI first, then PyPI) with PyPI trusted publishing.
 # Before the first tag: add trusted publishers for this repository on test.pypi.org and pypi.org
 # (workflow `build.yml`, environments `testpypi` and `pypi`).
@@ -6,8 +7,9 @@ name: build
 
 on:
   push:
+    # every branch (so the wheel/sdist build is checked on all three OSes before merging) and version tags
     branches:
-      - main
+      - '**'
     tags:
       - 'v*'
   pull_request:
