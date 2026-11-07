@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from fakes import CountingSource, FakeProjData, SinogramCountingSource, make_fake_stir, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode, TofMode
+from stir_projdata_viewer.model import ProjDataset, SliceMode, TofMode
 from stir_projdata_viewer.model.cache import LRUCache
 from stir_projdata_viewer.sources import ArraySource
 from stir_projdata_viewer.sources.array_source import standard_segment_sequence
