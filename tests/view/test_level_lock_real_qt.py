@@ -18,6 +18,17 @@ from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewMod
 Key = QtCore.Qt.Key
 
 
+def _trace(msg):  # TEMPORARY CI diagnostic: bypasses capture and buffering
+    os.write(2, f"[lock-trace] {msg}\n".encode())
+
+
+@pytest.fixture(autouse=True)
+def _trace_tests(request):
+    _trace(f"start {request.node.name}")
+    yield
+    _trace(f"end {request.node.name}")
+
+
 @pytest.fixture(scope="module")
 def app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
@@ -32,8 +43,10 @@ def win(app):
     w.show()
     app.processEvents()
     yield w
+    _trace("teardown")
     w._timer.stop()
     w.close()
+    _trace("closed")
 
 
 def _button(win, mode):
@@ -41,8 +54,10 @@ def _button(win, mode):
 
 
 def _press(widget, key):
+    _trace(f"press {type(widget).__name__} {key}")
     QtTest.QTest.keyClick(widget, key)
     QtWidgets.QApplication.processEvents()
+    _trace("pressed")
 
 
 def _colour_bar(win):
