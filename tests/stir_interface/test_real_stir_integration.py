@@ -8,10 +8,10 @@ import pytest
 
 stir = pytest.importorskip("stir")
 
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode, TofMode  # noqa: E402
-from stir_projdata_viewer.stir_interface import open_stir_source  # noqa: E402
-from stir_projdata_viewer.stir_interface.swig_gateway import SwigStirGateway  # noqa: E402
-from stir_projdata_viewer.viewmodel import ViewerViewModel  # noqa: E402
+from pet_projection_data_visualization.model import ProjDataset, Selection, SliceMode, TofMode  # noqa: E402
+from pet_projection_data_visualization.stir_interface import open_stir_source  # noqa: E402
+from pet_projection_data_visualization.stir_interface.swig_gateway import SwigStirGateway  # noqa: E402
+from pet_projection_data_visualization.viewmodel import ViewerViewModel  # noqa: E402
 
 from test_gateway_contract import check_handle_contract  # noqa: E402
 
@@ -58,6 +58,6 @@ def test_viewer_stack_on_real_data():
 
 
 def test_view_model_loads_a_real_file():
-    from stir_projdata_viewer.sources.loader import make_source
+    from pet_projection_data_visualization.sources.loader import make_source
     vm = ViewerViewModel(make_source)
     assert vm.load(PATH) and vm.image is not None and vm.error is None

@@ -11,8 +11,8 @@ import types
 import pytest
 
 from fakes import non_tof_source, small_demo
-from stir_projdata_viewer.model import SliceMode, TofMode
-from stir_projdata_viewer.viewmodel import LevelMode, ViewerViewModel
+from pet_projection_data_visualization.model import SliceMode, TofMode
+from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel
 
 
 class _Meta(type):
@@ -62,8 +62,8 @@ class Recorder:
 
 
 def _view_modules():
-    """The view package only: 'stir_projdata_viewer.viewmodel' must NOT match (enums would be duplicated)."""
-    return [m for m in sys.modules if m == "stir_projdata_viewer.view" or m.startswith("stir_projdata_viewer.view.")]
+    """The view package only: 'pet_projection_data_visualization.viewmodel' must NOT match (enums would be duplicated)."""
+    return [m for m in sys.modules if m == "pet_projection_data_visualization.view" or m.startswith("pet_projection_data_visualization.view.")]
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def window_module(monkeypatch):
         sys.modules["PySide6"].__dict__[sub] = sys.modules[f"PySide6.{sub}"]
     for name in _view_modules():
         monkeypatch.delitem(sys.modules, name)
-    yield importlib.import_module("stir_projdata_viewer.view.window")
+    yield importlib.import_module("pet_projection_data_visualization.view.window")
     for name in _view_modules():
         sys.modules.pop(name, None)       # never leave stub-bound modules behind for later tests
 
@@ -251,7 +251,7 @@ def test_path_box_shows_file_paths_only_never_data_set_labels(window_module, tmp
     assert all(t == "" for t in shown) and "demo" in titles[-1]   # the label goes to the title, never the path box
     f = tmp_path / "a.npy"
     np.save(f, np.zeros((4, 3, 5), dtype=np.float32))
-    h.vm._factory = __import__("stir_projdata_viewer.sources.loader", fromlist=["x"]).make_source
+    h.vm._factory = __import__("pet_projection_data_visualization.sources.loader", fromlist=["x"]).make_source
     h.vm.load(str(f))
     assert shown[-1] == str(f)
 

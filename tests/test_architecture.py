@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-PKG = "stir_projdata_viewer"
+PKG = "pet_projection_data_visualization"
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src"
 ROOT = SRC / PKG
 
@@ -96,12 +96,12 @@ def test_swig_gateway_imports_stir_only_lazily():
 
 
 @pytest.mark.parametrize("modules", [
-    ["stir_projdata_viewer.model"],
-    ["stir_projdata_viewer.sources"],
-    ["stir_projdata_viewer.stir_interface"],
-    ["stir_projdata_viewer.viewmodel"],
-    ["stir_projdata_viewer.model", "stir_projdata_viewer.sources", "stir_projdata_viewer.stir_interface",
-     "stir_projdata_viewer.viewmodel", "stir_projdata_viewer.cli"],
+    ["pet_projection_data_visualization.model"],
+    ["pet_projection_data_visualization.sources"],
+    ["pet_projection_data_visualization.stir_interface"],
+    ["pet_projection_data_visualization.viewmodel"],
+    ["pet_projection_data_visualization.model", "pet_projection_data_visualization.sources", "pet_projection_data_visualization.stir_interface",
+     "pet_projection_data_visualization.viewmodel", "pet_projection_data_visualization.cli"],
 ])
 def test_qt_free_layers_import_without_loading_qt_or_stir(modules):
     code = (
@@ -142,8 +142,8 @@ def test_theme_and_shared_viewmodel_logic_import_without_qt():
     code = (
         "import sys\n"
         f"sys.path.insert(0, {str(SRC)!r})\n"
-        "for m in ('stir_projdata_viewer.view.theme', 'stir_projdata_viewer.viewmodel.options',\n"
-        "          'stir_projdata_viewer.viewmodel.bindings'):\n"
+        "for m in ('pet_projection_data_visualization.view.theme', 'pet_projection_data_visualization.viewmodel.options',\n"
+        "          'pet_projection_data_visualization.viewmodel.bindings'):\n"
         "    __import__(m)\n"
         "bad = sorted(m for m in sys.modules if m.split('.')[0] in {'PySide6', 'pyqtgraph', 'stir'})\n"
         "assert not bad, bad\n")

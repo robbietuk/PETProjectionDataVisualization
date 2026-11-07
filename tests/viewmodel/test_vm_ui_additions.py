@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from fakes import non_tof_source, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode, TofMode
-from stir_projdata_viewer.model.slices import SliceStats
-from stir_projdata_viewer.viewmodel import ViewerViewModel, formatting
+from pet_projection_data_visualization.model import ProjDataset, Selection, SliceMode, TofMode
+from pet_projection_data_visualization.model.slices import SliceStats
+from pet_projection_data_visualization.viewmodel import ViewerViewModel, formatting
 
 
 def make_vm(src=None):

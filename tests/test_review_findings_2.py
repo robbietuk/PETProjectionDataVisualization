@@ -7,14 +7,14 @@ import numpy as np
 import pytest
 
 from fakes import CountingSource, FakeProjData, SinogramCountingSource, make_fake_stir, small_demo
-from stir_projdata_viewer.model import ProjDataset, SliceMode, TofMode
-from stir_projdata_viewer.model.cache import LRUCache
-from stir_projdata_viewer.sources import ArraySource
-from stir_projdata_viewer.sources.array_source import standard_segment_sequence
-from stir_projdata_viewer.stir_interface import StirNotFoundError
-from stir_projdata_viewer.stir_interface.swig_gateway import ENV_VAR, SwigStirGateway, import_stir
-from stir_projdata_viewer.viewmodel import LevelMode, ViewerViewModel
-from stir_projdata_viewer.viewmodel.viewer_viewmodel import clean_path
+from pet_projection_data_visualization.model import ProjDataset, SliceMode, TofMode
+from pet_projection_data_visualization.model.cache import LRUCache
+from pet_projection_data_visualization.sources import ArraySource
+from pet_projection_data_visualization.sources.array_source import standard_segment_sequence
+from pet_projection_data_visualization.stir_interface import StirNotFoundError
+from pet_projection_data_visualization.stir_interface.swig_gateway import ENV_VAR, SwigStirGateway, import_stir
+from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel
+from pet_projection_data_visualization.viewmodel.viewer_viewmodel import clean_path
 
 
 class FailOn:
@@ -236,7 +236,7 @@ def test_10_clean_path_strips_quotes_and_expands_home(monkeypatch):
 def test_10_source_path_is_only_set_for_files(tmp_path):
     f = tmp_path / "a.npy"
     np.save(f, np.zeros((4, 3, 5), dtype=np.float32))
-    from stir_projdata_viewer.sources.loader import make_source
+    from pet_projection_data_visualization.sources.loader import make_source
     vm = ViewerViewModel(make_source, demo_factory=small_demo)
     vm.load_demo()
     assert vm.source_path == "" and "demo" in vm.source_label

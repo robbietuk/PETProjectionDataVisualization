@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 
-from stir_projdata_viewer.viewmodel import ObservableObject, Observed
+from pet_projection_data_visualization.viewmodel import ObservableObject, Observed
 
 
 class Thing(ObservableObject):

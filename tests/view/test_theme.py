@@ -4,8 +4,8 @@ import re
 
 import pytest
 
-from stir_projdata_viewer.view import theme
-from stir_projdata_viewer.view.theme import DARK, LIGHT, PALETTES, TEXT_PAIRS, build_stylesheet, contrast_ratio
+from pet_projection_data_visualization.view import theme
+from pet_projection_data_visualization.view.theme import DARK, LIGHT, PALETTES, TEXT_PAIRS, build_stylesheet, contrast_ratio
 
 HEX = re.compile(r"^#[0-9a-f]{6}$")
 

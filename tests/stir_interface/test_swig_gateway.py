@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from fakes import FakeProjData, make_fake_stir
-from stir_projdata_viewer.stir_interface import StirNotFoundError
-from stir_projdata_viewer.stir_interface.swig_gateway import ENV_VAR, SwigStirGateway, import_stir
+from pet_projection_data_visualization.stir_interface import StirNotFoundError
+from pet_projection_data_visualization.stir_interface.swig_gateway import ENV_VAR, SwigStirGateway, import_stir
 
 
 def gateway(pd=None):

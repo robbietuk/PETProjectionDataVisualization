@@ -5,8 +5,8 @@ import random
 import pytest
 
 from fakes import non_tof_source, small_demo
-from stir_projdata_viewer.model import DIMENSIONS, SliceMode, TofMode
-from stir_projdata_viewer.viewmodel import LevelMode, ViewerViewModel
+from pet_projection_data_visualization.model import DIMENSIONS, SliceMode, TofMode
+from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel
 
 
 def random_command(vm, rng):

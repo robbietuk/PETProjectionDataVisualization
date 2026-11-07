@@ -1,4 +1,4 @@
-# stir-projdata-viewer
+# PETProjectionDataVisualization
 
 Interactive viewer for STIR projection data: sinograms, viewgrams and tangential slices, with
 a time-of-flight (TOF) dimension you can step through, play back, or collapse.
@@ -23,10 +23,10 @@ pip install -e .                      # run from this directory
 python -m venv .venv && . .venv/bin/activate
 pip install -e .                      # numpy, PySide6, pyqtgraph
 export LD_LIBRARY_PATH=<STIR install>/lib:$LD_LIBRARY_PATH   # DYLD_LIBRARY_PATH on macOS; on Windows --stir-path also registers <prefix>/bin and <prefix>/lib
-stir-projdata-viewer file.hs --stir-path <STIR install>/python
+pet-projection-data-visualization file.hs --stir-path <STIR install>/python
 
 # C) no STIR at all: numpy files and the synthetic demo still work
-pip install -e . && stir-projdata-viewer --demo
+pip install -e . && pet-projection-data-visualization --demo
 ```
 
 ## Loading data
@@ -44,19 +44,19 @@ The viewer accepts three kinds of input:
 Run these from an environment where the viewer is installed (see [Install](#install)):
 
 ```sh
-stir-projdata-viewer my_sinogram.hs                    # STIR projection data
-stir-projdata-viewer -f my_sinogram.hs                 # same, old-tool spelling
-python -m stir_projdata_viewer my_sinogram.hs          # same, without the console script
-stir-projdata-viewer data.npz                          # numpy arrays
-stir-projdata-viewer --demo                            # synthetic TOF demo
-stir-projdata-viewer                                   # empty window: load from the GUI
-stir-projdata-viewer my_sinogram.hs --theme light      # light colour scheme
+pet-projection-data-visualization my_sinogram.hs                    # STIR projection data
+pet-projection-data-visualization -f my_sinogram.hs                 # same, old-tool spelling
+python -m pet_projection_data_visualization my_sinogram.hs          # same, without the console script
+pet-projection-data-visualization data.npz                          # numpy arrays
+pet-projection-data-visualization --demo                            # synthetic TOF demo
+pet-projection-data-visualization                                   # empty window: load from the GUI
+pet-projection-data-visualization my_sinogram.hs --theme light      # light colour scheme
 ```
 
 If `stir` is a source build that is not on the Python path, tell the viewer where it is installed:
 
 ```sh
-stir-projdata-viewer my_sinogram.hs --stir-path <STIR install prefix>/python
+pet-projection-data-visualization my_sinogram.hs --stir-path <STIR install prefix>/python
 # or, once per shell:
 export STIR_PYTHON_PATH=<STIR install prefix>/python
 export DYLD_LIBRARY_PATH=<STIR install prefix>/lib:$DYLD_LIBRARY_PATH   # macOS (LD_LIBRARY_PATH on Linux)
@@ -81,7 +81,7 @@ STIR's Python bindings: use the conda environment, or `--stir-path` / `STIR_PYTH
 (for example one you just forward projected into), or nothing:
 
 ```python
-from stir_projdata_viewer.app import launch    # `launch_GUI` is kept as an alias of the old name
+from pet_projection_data_visualization.app import launch    # `launch_GUI` is kept as an alias of the old name
 
 launch("my_sinogram.hs")                         # a filename (.hs, .npy, .npz)
 
@@ -196,9 +196,8 @@ the data summary is shown in the Information panel instead of the console.
 
 Dropped: the Qt style/palette selector; zoom/pan (the slice is always shown whole, as a fixed image).
 
-Installation: STIR's CMake installs this package next to the `stir` package (`<prefix>/python/stir_projdata_viewer`),
-so after installing STIR `python -m stir_projdata_viewer` works wherever `import stir` does. The old tool is still
-installed as `stir.projdata_visualisation` and is unchanged.
+Installation: this is a separate package (`pip install PETProjectionDataVisualization`, or from conda-forge once
+the recipe is accepted). The old tool is still part of STIR as `stir.projdata_visualisation` and is unchanged.
 
 ## Known limitations
 

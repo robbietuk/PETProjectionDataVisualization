@@ -2,8 +2,8 @@
 import numpy as np
 import pytest
 
-from stir_projdata_viewer.model import SliceImage, compute_stats
-from stir_projdata_viewer.model.cache import LRUCache
+from pet_projection_data_visualization.model import SliceImage, compute_stats
+from pet_projection_data_visualization.model.cache import LRUCache
 
 
 def image(rows=4, cols=6, row0=0, col0=-3):
@@ -75,6 +75,6 @@ def test_stats_ignore_non_finite_values_without_warnings():
 
 
 def test_finite_range():
-    from stir_projdata_viewer.model import finite_range
+    from pet_projection_data_visualization.model import finite_range
     assert finite_range(np.array([np.nan, 2.0, np.inf, -1.0])) == (-1.0, 2.0)
     assert finite_range(np.array([np.nan, np.inf])) is None

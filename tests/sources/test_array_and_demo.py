@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from fakes import small_demo
-from stir_projdata_viewer.sources import ArraySource, make_demo_source
+from pet_projection_data_visualization.sources import ArraySource, make_demo_source
 
 
 def test_demo_info():

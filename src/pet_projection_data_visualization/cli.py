@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Part of STIR (see STIR/LICENSE.txt).
-"""Command line entry point: ``stir-projdata-viewer [file] [--demo] [--stir-path DIR]``."""
+"""Command line entry point: ``pet-projection-data-visualization [file] [--demo] [--stir-path DIR]``."""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ import sys
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="stir-projdata-viewer",
+        prog="pet-projection-data-visualization",
         description="Interactive viewer for STIR projection data (sinograms, viewgrams, TOF bins).")
     p.add_argument("path", nargs="?", help="projection data header (*.hs), or a .npy/.npz array file")
     p.add_argument("-f", "--filename", dest="filename", metavar="FILE",

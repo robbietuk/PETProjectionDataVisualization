@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 
-from stir_projdata_viewer.cli import build_parser
+from pet_projection_data_visualization.cli import build_parser
 
 
 def test_positional_and_old_style_filename_options():
@@ -19,7 +19,7 @@ def test_flags():
 def test_help_works_without_qt(capsys):
     with pytest.raises(SystemExit) as e:
         build_parser().parse_args(["-h"])
-    assert e.value.code == 0 and "stir-projdata-viewer" in capsys.readouterr().out
+    assert e.value.code == 0 and "pet-projection-data-visualization" in capsys.readouterr().out
 
 
 def test_theme_option():

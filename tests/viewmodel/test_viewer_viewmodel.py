@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 
 from fakes import CountingSource, non_tof_source, small_demo
-from stir_projdata_viewer.model import SliceMode, TofMode
-from stir_projdata_viewer.viewmodel import COLORMAPS, LevelMode, ViewerViewModel
-from stir_projdata_viewer.viewmodel.viewer_viewmodel import MAX_FPS, MIN_FPS
+from pet_projection_data_visualization.model import SliceMode, TofMode
+from pet_projection_data_visualization.viewmodel import COLORMAPS, LevelMode, ViewerViewModel
+from pet_projection_data_visualization.viewmodel.viewer_viewmodel import MAX_FPS, MIN_FPS
 
 
 def make_vm(source=None, load=True):
@@ -251,7 +251,7 @@ def test_log_display_transforms_values_and_levels():
 def test_log_display_handles_negative_values():
     arr = np.full((4, 2, 5), -3.0, dtype=np.float32)
     arr[1, 1, 1] = 7.0
-    from stir_projdata_viewer.sources import ArraySource
+    from pet_projection_data_visualization.sources import ArraySource
     vm, _ = make_vm(ArraySource({0: arr}))
     vm.set_log_display(True)
     assert np.isfinite(vm.image.data).all() and vm.image.data.min() == 0.0
@@ -293,7 +293,7 @@ def test_stale_manual_levels_never_come_back_after_a_scale_change():
 
 
 def test_constant_slice_still_gets_a_valid_level_range():
-    from stir_projdata_viewer.sources import ArraySource
+    from pet_projection_data_visualization.sources import ArraySource
     vm, _ = make_vm(ArraySource({0: np.full((4, 2, 5), 3.0)}))
     lo, hi = vm.levels
     assert hi > lo

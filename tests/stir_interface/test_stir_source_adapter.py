@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 from fakes import FakeGateway, FakeHandle, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, TofMode
-from stir_projdata_viewer.stir_interface import StirProjDataSource, open_stir_source
+from pet_projection_data_visualization.model import ProjDataset, Selection, TofMode
+from pet_projection_data_visualization.stir_interface import StirProjDataSource, open_stir_source
 
 
 def test_info_maps_layout_and_metadata():

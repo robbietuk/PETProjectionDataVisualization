@@ -69,7 +69,7 @@ jobs:
         if [ -f clean/bin/activate ]; then source clean/bin/activate; else source clean/Scripts/activate; fi
         if [ "${{ matrix.kind }}" = wheel ]; then pkg=$(ls dist/*.whl); else pkg=$(ls dist/*.tar.gz); fi
         python -m pip install "$pkg"
-        stir-projdata-viewer --help
+        pet-projection-data-visualization --help
         # run from outside the checkout so the installed package is the one imported
         cd "$RUNNER_TEMP" && python "$GITHUB_WORKSPACE/scripts/ci_smoke.py" --demo --out ci_smoke.png
 
