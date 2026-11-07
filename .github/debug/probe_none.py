@@ -1,107 +1,33 @@
-# TEMPORARY probe (removed before merge): where does None's refcount go on Python 3.11?
-import gc
+# SPDX-License-Identifier: Apache-2.0
+# TEMPORARY probe (removed before merge): the real app's playback with and without the start-up guard.
 import os
 import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-RESERVE = [None] * 5_000_000          # so a decreasing count cannot abort the probe itself
-
-import numpy as np  # noqa: E402
-import PySide6  # noqa: E402
-import pyqtgraph as pg  # noqa: E402
-from PySide6 import QtCore, QtGui, QtWidgets  # noqa: E402
-
-app = QtWidgets.QApplication([])
-print(f"python {sys.version.split()[0]} {sys.platform} PySide6 {PySide6.__version__} pyqtgraph {pg.__version__} "
-      f"numpy {np.__version__}", flush=True)
-
-
-def m(label, fn, n=200):
-    for _ in range(3):
-        fn()
-    gc.collect()
-    r0 = sys.getrefcount(None)
-    for _ in range(n):
-        fn()
-    gc.collect()
-    print(f"  {label:44s} per call {(sys.getrefcount(None) - r0) / n:+.2f}", flush=True)
-
-
-class Item(QtWidgets.QGraphicsItem):
-    def boundingRect(self):
-        return QtCore.QRectF(0, 0, 10, 10)
-
-    def paint(self, p, opt, widget=None):
-        pass
-
-
-class Obj(QtWidgets.QGraphicsObject):
-    def boundingRect(self):
-        return QtCore.QRectF(0, 0, 10, 10)
-
-    def paint(self, p, *args):
-        return None
-
-
-scene = QtWidgets.QGraphicsScene()
-view = QtWidgets.QGraphicsView(scene)
-for cls in (Item, Obj):
-    scene.addItem(cls())
-view.resize(200, 200)
-view.show()
-app.processEvents()
-m("plain QGraphicsView grab, 2 py paint()", view.grab)
-m("plain QGraphicsView repaint", lambda: view.viewport().repaint())
-
-img = QtGui.QImage(200, 200, QtGui.QImage.Format.Format_ARGB32)
-painter = QtGui.QPainter(img)
-m("np.dtype(tuple)", lambda: np.dtype(tuple))
-m("pg.mkColor((0,0,0,100))", lambda: pg.mkColor((0, 0, 0, 100)))
-m("pg.mkPen('r')", lambda: pg.mkPen("r"))
-
-for what in ("plot", "image", "hist", "curve", "region"):
-    w = pg.GraphicsLayoutWidget()
-    if what == "plot":
-        w.addPlot()
-    elif what == "image":
-        w.addPlot().addItem(pg.ImageItem(np.random.rand(16, 16)))
-    elif what == "hist":
-        w.addItem(pg.HistogramLUTItem())
-    elif what == "curve":
-        w.addPlot().plot(np.arange(5.0), np.arange(5.0), symbol="o")
-    elif what == "region":
-        w.addPlot().addItem(pg.LinearRegionItem((1, 2)))
-    w.resize(400, 300)
-    w.show()
-    app.processEvents()
-    m(f"pyqtgraph {what}: grab", w.grab, 100)
-    m(f"pyqtgraph {what}: viewport repaint", lambda: w.viewport().repaint(), 100)
-    w.close()
-
-h = pg.HistogramLUTItem()
-m("HistogramLUTItem.paint called from Python", lambda: h.paint(painter, None, None))
-painter.end()
-
-# the application itself: demo data, locked levels, playback with a repaint per frame
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+import PySide6  # noqa: E402
+from PySide6 import QtWidgets  # noqa: E402
+
+from pet_projection_data_visualization import _refcount_guard as guard  # noqa: E402
+
+use_guard = sys.argv[1] == "guard"
+if not use_guard:
+    guard.protect_singletons = lambda: False          # what the app did before this fix
+app = QtWidgets.QApplication([])
 from pet_projection_data_visualization.app import build  # noqa: E402
 
+print(f"python {sys.version.split()[0]} PySide6 {PySide6.__version__} guard={use_guard}", flush=True)
 vm, win = build()
 win.resize(1200, 800)
 win.show()
 vm.load_demo()
-app.processEvents()
 vm.set_playing(True)
-
-
-def frame():
+for frame in range(1, 1001):
     vm.tick()
     win.repaint()
     app.processEvents()
-
-
-m("app: one playback frame (tick + repaint)", frame, 200)
-vm.set_playing(False)
-m("app: step view (Right) + repaint", lambda: (vm.step_active(1), win.repaint(), app.processEvents()), 200)
-print(f"  None refcount now {sys.getrefcount(None)} (reserve {len(RESERVE)})", flush=True)
+    if frame % 100 == 0:
+        print(f"frame {frame}: refcounts None/True/False {[sys.getrefcount(o) for o in guard.SINGLETONS]}",
+              flush=True)
+print("survived 1000 frames", flush=True)
 os._exit(0)
