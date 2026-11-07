@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling>=1.27", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -10,13 +10,13 @@ dynamic = ["version"]
 description = "Interactive PySide6 viewer for STIR projection data (sinograms, viewgrams, TOF bins)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Robert Twyman Skelly", email = "robbietuk@gmail.com" }]
 keywords = ["PET", "STIR", "sinogram", "projection data", "time of flight", "visualization", "Qt"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -50,14 +50,29 @@ pet-projection-data-visualization = "pet_projection_data_visualization.cli:main"
 source = "vcs"
 
 [tool.hatch.version.raw-options]
-# tags look like v1.2.3; anything else (e.g. a stray "test" tag) is ignored
-tag_regex = "^v(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+(?:[-.]?(?:a|b|rc)[0-9]+)?)$"
+# Only vMAJOR.MINOR.PATCH (optionally aN/bN/rcN) tags count; this is the same rule as
+# scripts/release_notes.py, kept in sync by tests/test_release_tooling.py. Other tags are ignored.
+tag_regex = "^v(?P<version>(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?)$"
 git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
-# only used when there is no git metadata at all (e.g. a GitHub "Download ZIP" without .git)
+# Used when there is no git metadata (e.g. a GitHub "Download ZIP"); before the first v* tag it is also
+# the base of development versions (0.0.1.devN+...). Release builds always come from a tag.
 fallback_version = "0.0.0+unknown"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/pet_projection_data_visualization/_version.py"
+
+[tool.hatch.build.targets.sdist]
+# an explicit list, so local folders (virtual envs, worktrees, app builds) never end up in the sdist
+include = [
+    "src/",
+    "tests/",
+    "scripts/",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "PLAN.md",
+    "environment.yml",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pet_projection_data_visualization"]

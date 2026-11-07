@@ -7,6 +7,8 @@ Fails (exit 1) unless:
 * the tag is ``vMAJOR.MINOR.PATCH`` (optionally with ``aN``/``bN``/``rcN``), i.e. semantic versioning;
 * every built file in ``--dist`` carries exactly that version (the git tag is the source of truth);
 * CHANGELOG.md has a ``## [X.Y.Z]`` section, whose body is written to ``--out`` as the release notes.
+  For a pre-release tag (``vX.Y.ZrcN`` etc.) a ``## [X.Y.ZrcN]`` section is used if present, otherwise
+  ``## [Unreleased]`` (a release candidate is cut before the changelog is renamed).
 """
 from __future__ import annotations
 
@@ -57,7 +59,10 @@ def main(argv: list[str] | None = None) -> int:
             if v != version:
                 print(f"::error::{name} has version {v}, but the tag says {version}")
                 ok = False
-    notes = changelog_section(a.changelog.read_text(encoding="utf-8"), version)
+    text = a.changelog.read_text(encoding="utf-8")
+    notes = changelog_section(text, version)
+    if not notes and m.group(5):                     # pre-release: fall back to the Unreleased section
+        notes = changelog_section(text, "Unreleased")
     if not notes:
         print(f"::error::{a.changelog} has no '## [{version}]' section (rename [Unreleased] before tagging)")
         ok = False
