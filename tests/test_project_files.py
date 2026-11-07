@@ -3,7 +3,7 @@
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PY_FILES = [p for d in ("src", "tests", "scripts") for p in (ROOT / d).rglob("*.py") if p.name != "_version.py"]
+PY_FILES = [p for d in ("src", "tests", "scripts", "packaging") for p in (ROOT / d).rglob("*.py") if p.name != "_version.py"]
 
 
 def test_every_python_file_has_an_spdx_line_and_no_stir_header():
