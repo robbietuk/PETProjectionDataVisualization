@@ -15,10 +15,10 @@ the feedstock exists; after that, change the recipe in the feedstock instead.
 
 ## Before submitting
 
-1. `LICENSE` must be in the repository (it is added on the `port/headers` branch);
+1. `LICENSE` must be in the repository (Step 4 of `docs/PORT_PLAN.md`; not added yet);
    the recipe's `license_file: LICENSE` fails without it.
-2. Version 0.1.0 must be on PyPI as an sdist named
-   `petprojectiondatavisualization-0.1.0.tar.gz` (hatchling's normalised name).
+2. Version 1.0.0 must be on PyPI as an sdist named
+   `petprojectiondatavisualization-1.0.0.tar.gz` (hatchling's normalised name).
 
 ## Submit to staged-recipes
 
@@ -49,7 +49,7 @@ the feedstock exists; after that, change the recipe in the feedstock instead.
    next to the `.tar.gz`), or compute it from the published file:
 
    ```bash
-   curl -sL https://pypi.org/packages/source/p/petprojectiondatavisualization/petprojectiondatavisualization-0.1.0.tar.gz | shasum -a 256
+   curl -sL https://pypi.org/packages/source/p/petprojectiondatavisualization/petprojectiondatavisualization-1.0.0.tar.gz | shasum -a 256
    ```
 
    Replace the all-zero `sha256:` and delete the placeholder comment above it.

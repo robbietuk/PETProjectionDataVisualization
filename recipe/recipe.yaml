@@ -2,7 +2,7 @@ schema_version: 1
 
 context:
   name: petprojectiondatavisualization
-  version: "0.1.0"
+  version: "1.0.0"
   python_min: "3.11"
 
 package:
@@ -11,7 +11,7 @@ package:
 
 source:
   url: https://pypi.org/packages/source/${{ name[0] }}/${{ name }}/${{ name }}-${{ version }}.tar.gz
-  # Placeholder: replace with the sha256 of the sdist once 0.1.0 is on PyPI
+  # Placeholder: replace with the sha256 of the sdist once 1.0.0 is on PyPI
   # (see recipe/README.md, "Fill in the sha256").
   sha256: 0000000000000000000000000000000000000000000000000000000000000000
 
@@ -55,7 +55,7 @@ about:
   summary: Interactive PySide6 viewer for STIR projection data (sinograms, viewgrams, TOF bins)
   license: Apache-2.0
   # LICENSE is added to the repository on the `port/headers` branch; it must be
-  # merged (and so be in the 0.1.0 sdist) before this recipe is submitted.
+  # merged (and so be in the 1.0.0 sdist) before this recipe is submitted.
   license_file: LICENSE
 
 extra:
