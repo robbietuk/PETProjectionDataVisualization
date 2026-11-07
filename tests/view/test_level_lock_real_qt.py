@@ -18,12 +18,19 @@ from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewMod
 Key = QtCore.Qt.Key
 
 
+_CAPMAN = []
+
+
 def _trace(msg):  # TEMPORARY CI diagnostic: bypasses capture and buffering
-    os.write(2, f"[lock-trace] {msg}\n".encode())
+    import sys
+    with _CAPMAN[0].global_and_fixture_disabled():
+        sys.stdout.write(f"\n[lock-trace] {msg}\n")
+        sys.stdout.flush()
 
 
 @pytest.fixture(autouse=True)
 def _trace_tests(request):
+    _CAPMAN[:] = [request.config.pluginmanager.getplugin("capturemanager")]
     _trace(f"start {request.node.name}")
     yield
     _trace(f"end {request.node.name}")
