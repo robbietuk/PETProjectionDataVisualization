@@ -6,12 +6,10 @@ All notable changes to this project are recorded here. The format follows
 
 The version number lives only in git tags (`vMAJOR.MINOR.PATCH`). Every pull request adds its
 changes under **Unreleased**. Releasing renames that section to the new version, and the tag
-publishes it (see [CONTRIBUTING.md](CONTRIBUTING.md#releasing)).
+publishes it (see [CONTRIBUTING.md](CONTRIBUTING.md#releasing)). The first release will be 1.0.0: everything
+under Unreleased below is the work since the viewer was split out of STIR's `examples/python/projdata_viewer`.
 
 ## [Unreleased]
-
-The first release will be 1.0.0. It contains everything below, since the viewer was split out of
-STIR's `examples/python/projdata_viewer`.
 
 ### Added
 
@@ -55,9 +53,10 @@ STIR's `examples/python/projdata_viewer`.
     operating systems
   - publishing to TestPyPI and then PyPI with trusted publishing, plus a GitHub Release whose notes
     come from this file, when a version tag is pushed
-- **Tests.** 384 tests across the model, sources, STIR interface, view model and view, using
+- **Tests.** About 400 tests across the model, sources, STIR interface, view model and view, using
   stubbed and real Qt. They include architecture rules that keep the model and view model free of
-  Qt and STIR.
+  Qt and STIR, and checks that every source file carries the SPDX licence line.
+- **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
 
 ### Fixed
 
@@ -72,6 +71,8 @@ These came out of two independent code reviews, before the split from STIR:
   about 1 GiB.
 - Two tests assumed POSIX paths and failed on Windows.
 - A PySide6 crash during interpreter shutdown no longer fails the Linux/Python 3.11 test run.
+- conda-forge `stir` on Windows looked for its config files in the wrong folder; CI sets
+  `STIR_CONFIG_DIR` to the installed tables.
 
 ### Changed
 

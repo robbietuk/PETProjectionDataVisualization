@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """VIEW layer: the main window, built from ``components`` and bound to a ``ViewerViewModel``.
 
 Rules of this file: widgets send user input to view-model commands, and redraw from view-model

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Gateway to the real ``stir`` SWIG module. This is the ONLY file that touches ``stir`` objects.
 
 ``stir`` is a compiled extension that is not on PyPI, so it is imported lazily. Lookup order,

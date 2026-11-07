@@ -41,7 +41,11 @@ package is built or installed. `pet-projection-data-visualization --version` and
 | Bug fix only | PATCH | 1.4.2 -> 1.4.3 |
 
 A build between tags gets a development version such as `1.4.3.dev5+g1a2b3c4`. Pre-releases use tags
-like `v2.0.0rc1`. The first release is `v1.0.0`.
+like `v2.0.0rc1`, `v2.0.0b1` or `v2.0.0a1` (no dash or dot before the suffix; the same rule is in
+`pyproject.toml` and `scripts/release_notes.py`). A pre-release is published to PyPI as a pre-release
+(pip installs it only with `--pre` or an explicit version), and its GitHub Release is marked as a
+pre-release; its notes come from `## [X.Y.ZrcN]` if present, otherwise from `## [Unreleased]`.
+The first release is `v1.0.0`.
 
 ## Releasing
 
