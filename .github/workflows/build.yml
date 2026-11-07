@@ -2,7 +2,7 @@
 # on Ubuntu, macOS and Windows (standard GitHub-hosted runners, free for public repositories),
 # and publish on a version tag (TestPyPI first, then PyPI) with PyPI trusted publishing.
 # Before the first tag: add trusted publishers for this repository on test.pypi.org and pypi.org
-# (workflow `build.yml`, environments `testpypi` and `pypi`).
+# (workflow `build.yml`, environments `testpypi` and `pypi`). Release steps: CONTRIBUTING.md, "Releasing".
 name: build
 
 on:
@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0          # all history and tags: hatch-vcs takes the version from the git tag
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
@@ -37,10 +39,18 @@ jobs:
         if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
           echo "::error::tag ${GITHUB_REF_NAME} points at a commit that is not on main"; exit 1
         fi
+    - name: Release checks (tag is semver, packages carry the tag's version, CHANGELOG has the section)
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: python scripts/release_notes.py "${GITHUB_REF_NAME}" --dist dist --out dist-notes.md
     - uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/
+    - uses: actions/upload-artifact@v4
+      if: startsWith(github.ref, 'refs/tags/v')
+      with:
+        name: release-notes
+        path: dist-notes.md
 
   check-install:
     needs: dist
@@ -79,6 +89,7 @@ jobs:
         if [ "${{ matrix.kind }}" = wheel ]; then pkg=$(ls dist/*.whl); else pkg=$(ls dist/*.tar.gz); fi
         python -m pip install "$pkg"
         pet-projection-data-visualization --help
+        pet-projection-data-visualization --version
         # run from outside the checkout so the installed package is the one imported
         cd "$RUNNER_TEMP" && python "$GITHUB_WORKSPACE/scripts/ci_smoke.py" --demo --out ci_smoke.png
 
@@ -122,3 +133,23 @@ jobs:
         name: dist
         path: dist
     - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: publish-pypi
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist
+    - uses: actions/download-artifact@v4
+      with:
+        name: release-notes
+    - uses: softprops/action-gh-release@v2
+      with:
+        body_path: dist-notes.md
+        files: dist/*
+        prerelease: ${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}

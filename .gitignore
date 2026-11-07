@@ -5,6 +5,7 @@ __pycache__/
 dist/
 build/
 *.app/
+src/pet_projection_data_visualization/_version.py
 .stir_config_dir
 .claude/
 .venv-*/

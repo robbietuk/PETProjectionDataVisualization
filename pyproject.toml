@@ -1,10 +1,12 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.27", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "PETProjectionDataVisualization"
-version = "0.1.0"
+# The version comes from the latest git tag vMAJOR.MINOR.PATCH (semantic versioning); see
+# [tool.hatch.version] below and CONTRIBUTING.md, "Releasing". The git tag is the only source of truth.
+dynamic = ["version"]
 description = "Interactive PySide6 viewer for STIR projection data (sinograms, viewgrams, TOF bins)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -44,6 +46,21 @@ test = ["pytest>=7"]
 [project.scripts]
 pet-projection-data-visualization = "pet_projection_data_visualization.cli:main"
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Only vMAJOR.MINOR.PATCH (optionally aN/bN/rcN) tags count; this is the same rule as
+# scripts/release_notes.py, kept in sync by tests/test_release_tooling.py. Other tags are ignored.
+tag_regex = "^v(?P<version>(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?)$"
+git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
+# Used when there is no git metadata (e.g. a GitHub "Download ZIP"); before the first v* tag it is also
+# the base of development versions (0.0.1.devN+...). Release builds always come from a tag.
+fallback_version = "0.0.0+unknown"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/pet_projection_data_visualization/_version.py"
+
 [tool.hatch.build.targets.sdist]
 # an explicit list, so local folders (virtual envs, worktrees, app builds) never end up in the sdist
 include = [
@@ -54,6 +71,8 @@ include = [
     "/scripts/",
     "/packaging/",
     "/README.md",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
     "/PLAN.md",
     "/environment.yml",
 ]

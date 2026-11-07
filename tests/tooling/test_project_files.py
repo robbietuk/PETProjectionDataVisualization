@@ -2,7 +2,7 @@
 """Licence and header hygiene for the standalone project."""
 import pathlib
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 PY_FILES = [p for d in ("src", "tests", "scripts", "packaging") for p in (ROOT / d).rglob("*.py") if p.name != "_version.py"]
 
 
