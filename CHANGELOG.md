@@ -22,12 +22,20 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
 - **Inputs.** STIR projection data (`.hs` and anything `stir.ProjData.read_from_file` opens), read
   lazily one segment and one TOF bin at a time. Also numpy `.npy`/`.npz` files, including STIR's
   own `ProjData.as_array()` export saved with `axial_counts`, and a synthetic TOF demo (`--demo`).
-- **Levels.** Automatic per slice, a fixed global range over all segments and TOF bins, or manual.
-  The Min/Max boxes accept any magnitude, including values like `2.5e-8`. There is a draggable
+- **Levels.** Adaptive (per slice) or locked; a lock can be set at the global range over all
+  segments and TOF bins. The Min/Max boxes accept any magnitude, including values like `2.5e-8`. There is a draggable
   histogram and a log display switch.
 - **Interface.** A dark theme and a light theme whose text/background pairs are checked against
   WCAG AA contrast. Errors appear in an inline banner, there is an empty state, File > Save image,
   and a typed or pasted path box that strips quotes and expands `~`.
+- **Lockable colour levels.** An *Adaptive | Locked* toggle in the Display card (key `L`). Locked
+  keeps Min/Max and the colour bar exactly constant while changing view, axial or tangential
+  position, segment, TOF bin, TOF reduction, slice mode or log display, and during playback.
+  Typing a level or dragging the histogram keeps the lock at the new values, *Lock to global range*
+  locks at the whole data set's range, and a "Levels locked lo – hi" chip shows the state. Locking from
+  the screen (toggle, `L`, a drag in the histogram) keeps the colour bar's axis where it is; typed levels
+  and the global range fit it to the new limits. Loading another data set starts adaptive again; a failed
+  read or load keeps the lock.
 - **Keyboard.** Space plays or pauses, Left/Right step the active index and PgUp/PgDn change the
   segment. When a slider, spin box or text field has focus, the key goes to that widget instead.
 - **Finding STIR.** `--stir-path`, then `STIR_PYTHON_PATH`, then a plain `import stir`. A bad
@@ -58,18 +66,26 @@ These came out of two independent code reviews, before the split from STIR:
 
 - A failed load or slice read leaves the previous data, selection and widgets exactly as they were.
 - The TOF profile under a resting cursor updates whenever the slice changes.
-- Fixed global levels cover every TOF bin, so the colour scale does not change during playback.
+- The global level range covers every TOF bin, so levels locked to it do not change during playback.
 - The `(segment, tof)` overload of `get_segment_by_view` is used, which every `ProjData` subclass
   has.
 - Hovering reads single sinograms instead of whole segments, and the segment cache is capped at
   about 1 GiB.
 - Two tests assumed POSIX paths and failed on Windows.
 - A PySide6 crash during interpreter shutdown no longer fails the Linux/Python 3.11 test run.
+- Python 3.11 with PySide6 6.12.0 on Linux aborted after a few seconds of playback ("deallocating None",
+  exit status 134): that PySide6 release gives back references to `None`, `True` and `False` it never took.
+  pip no longer installs PySide6 6.12 with Python < 3.12, and on CPython < 3.12 the viewer (and the test suite)
+  make those three objects effectively immortal at start-up, as Python 3.12 does.
 - conda-forge `stir` on Windows looked for its config files in the wrong folder; CI sets
   `STIR_CONFIG_DIR` to the installed tables.
 
 ### Changed
 
+- The three level modes *Auto*, *Fixed (global range)* and *Manual* became two, *Adaptive* and
+  *Locked* (`LevelMode.ADAPTIVE` / `LevelMode.LOCKED`). The global range is now the
+  *Lock to global range* action, and editing a level locks it. Toggling the log display no longer
+  drops edited levels: locked levels stay locked and are mapped through the same `log(1 + x)`.
 - The project was renamed from `stir-projdata-viewer`. The PyPI name is
   `PETProjectionDataVisualization`, the import package is `pet_projection_data_visualization` and
   the command is `pet-projection-data-visualization`.

@@ -20,9 +20,12 @@ COLORMAPS = ("viridis", "inferno", "magma", "plasma", "cividis", "grey")
 
 
 class LevelMode(Enum):
-    AUTO = "Auto (per slice)"
-    FIXED = "Fixed (global range)"
-    MANUAL = "Manual (drag in histogram)"
+    """How the colour levels (Min/Max, the colour bar) behave while navigating.
+
+    ADAPTIVE: recomputed from every slice shown. LOCKED: frozen at one (Min, Max) pair until the user
+    edits them or unlocks; "global range" is an action that locks at the whole data set's range."""
+    ADAPTIVE = "Adaptive (per slice)"
+    LOCKED = "Locked (constant)"
 
 
 @dataclass(frozen=True)
@@ -73,5 +76,5 @@ SLICE_MODE_OPTIONS = ChoiceOptions.from_enum(
 TOF_MODE_OPTIONS = ChoiceOptions.from_enum(
     TofMode, {TofMode.BIN: "Bin", TofMode.SUM: "Sum", TofMode.MEAN: "Mean", TofMode.MAX: "Max"})
 LEVEL_MODE_OPTIONS = ChoiceOptions.from_enum(
-    LevelMode, {LevelMode.AUTO: "Auto", LevelMode.FIXED: "Global", LevelMode.MANUAL: "Manual"})
+    LevelMode, {LevelMode.ADAPTIVE: "Adaptive", LevelMode.LOCKED: "Locked"})
 COLORMAP_OPTIONS = ChoiceOptions.from_values(COLORMAPS)

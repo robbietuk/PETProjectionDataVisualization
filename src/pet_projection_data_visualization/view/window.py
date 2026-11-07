@@ -23,6 +23,9 @@ from .theme import DARK, LIGHT, Palette
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
 
 SIDEBAR_WIDTH = 340
+LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
+                  "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
+                  "log display. Typing a level or dragging the histogram locks at the new values.")
 
 
 def _colormap(name: str) -> pg.ColorMap:
@@ -40,6 +43,8 @@ def _uses_key(widget, key) -> bool:
     text_entry = (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox, QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)
     if key == Key.Key_Space:
         return isinstance(widget, text_entry)
+    if key == Key.Key_L:                   # a letter: typed into text fields, type-ahead in combo boxes
+        return isinstance(widget, (QtWidgets.QComboBox,) + text_entry)
     return isinstance(widget, (QtWidgets.QAbstractSlider, QtWidgets.QComboBox) + text_entry)
 
 
@@ -62,6 +67,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.resize(1320, 840)
         self._geometry_key: tuple | None = None
         self._applying_levels = False
+        self._levels_from_histogram = False     # set while a histogram drag is handed to the view model
+        self._painted_levels: tuple[float, float] | None = None
         self._build_menu()
         self._build_layout()
         self._pixel_label = QtWidgets.QLabel("")
@@ -175,11 +182,18 @@ class ViewerWindow(QtWidgets.QMainWindow):
         display = self.display_card = ui.Card("Display")
         self.cmap_control = ui.ChoiceCombo(COLORMAP_OPTIONS)
         self.cmap_control.choiceChanged.connect(lambda name: self._run(self.vm.set_colormap, name))
-        self.level_control = ui.SegmentedControl(LEVEL_MODE_OPTIONS)
+        self.level_control = ui.SegmentedControl(LEVEL_MODE_OPTIONS)      # Adaptive | Locked
+        self.level_control.setAccessibleName("Colour levels: adaptive or locked")
+        self.level_control.setToolTip(LEVEL_LOCK_TIP)
         self.level_control.choiceChanged.connect(lambda m: self._run(self.vm.set_level_mode, m))
-        self.level_control.set_choice_enabled(LEVEL_MODE_OPTIONS.values[-1], False)  # MANUAL is entered by editing
+        self.global_button = QtWidgets.QPushButton("Lock to global range")
+        self.global_button.setAccessibleName("Lock colour levels to the global range of the data set")
+        self.global_button.setToolTip("Lock Min/Max at the range of the whole data set in the current TOF mode "
+                                      "(reads every segment once).")
+        self.global_button.clicked.connect(lambda: self._run(self.vm.lock_global_range))
         display.body.addWidget(ui.LabeledRow("Colour map", self.cmap_control))
-        display.body.addWidget(self.level_control)
+        display.body.addWidget(self.level_control)          # full width, like the other mode controls
+        display.body.addWidget(self.global_button)
         self.level_edits: dict[str, ui.NumberEdit] = {}
         for key, label in (("low", "Min level"), ("high", "Max level")):
             edit = ui.NumberEdit()                   # any magnitude, e.g. 1e-8; commits on Enter/focus-out
@@ -273,6 +287,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
             Key.Key_Right: lambda: self._run(self.vm.step_active, +1),
             Key.Key_PageUp: lambda: self._run(self.vm.step, "segment", +1),
             Key.Key_PageDown: lambda: self._run(self.vm.step, "segment", -1),
+            Key.Key_L: lambda: self._run(self.vm.toggle_level_lock),
         }
         self._shortcuts = {}
         for key in self._shortcut_commands:
@@ -285,10 +300,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
         if focus is not None and _uses_key(focus, key):
             sc = self._shortcuts[key]
             sc.setEnabled(False)          # or the re-sent key would trigger this shortcut again
+            code = int(getattr(key, "value", key))
+            text = chr(code).lower() if 0x20 <= code < 0x7F else ""    # Space, letters: what the key types
             try:
                 for kind in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
                     QtWidgets.QApplication.sendEvent(
-                        focus, QtGui.QKeyEvent(kind, key, QtCore.Qt.KeyboardModifier.NoModifier))
+                        focus, QtGui.QKeyEvent(kind, key, QtCore.Qt.KeyboardModifier.NoModifier, text))
             finally:
                 sc.setEnabled(True)
             return
@@ -344,7 +361,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _on_user_levels(self) -> None:
         if not self._applying_levels:
             lo, hi = self.hist.getLevels()
-            self.vm.set_manual_levels(lo, hi)
+            self._levels_from_histogram = True
+            try:
+                self.vm.set_manual_levels(lo, hi)
+            finally:
+                self._levels_from_histogram = False
 
     def _on_mouse_moved(self, scene_pos) -> None:
         vb = self.plot.vb
@@ -377,7 +398,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         b("level_mode", self._paint_level_mode)
         b("log_display", lambda: ui.silently(self.log_switch, lambda: self.log_switch.setChecked(self.vm.log_display)))
         b("image", self._draw_image)
-        b("levels", self._paint_levels)
+        b(("levels", "level_mode"), self._paint_levels)       # after the image, as before
         b("info_text", lambda: self.info_view.setPlainText(self.vm.info_text))
         b("pixel_text", lambda: self._pixel_label.setText(self.vm.pixel_text))
         b("tof_profile", self._paint_tof_profile)
@@ -414,19 +435,35 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.cmap_control.set_choice(self.vm.colormap)
 
     def _paint_level_mode(self) -> None:
-        self.level_control.set_choice_enabled(LevelMode.MANUAL, self.vm.level_mode is LevelMode.MANUAL)
         self.level_control.set_choice(self.vm.level_mode)
 
     def _paint_levels(self) -> None:
-        if self.vm.levels is None:
+        """Levels into the histogram and the Min/Max boxes. While locked the colour bar's axis is pinned
+        too, so it stays exactly the same from slice to slice; adaptive, it follows the data.
+
+        A lock made from what is on screen (the toggle, L, a drag in the histogram) keeps the axis where
+        it is, so the colour bar does not jump under the mouse; new values from elsewhere (typed, global
+        range, log display) fit the axis to the lock."""
+        levels = self.vm.levels
+        if levels is None:
             return
         self._applying_levels = True
         try:
-            self.hist.setLevels(*self.vm.levels)
-            for key, value in zip(("low", "high"), self.vm.levels):
+            self.hist.setLevels(*levels)
+            if self.vm.level_mode is LevelMode.LOCKED:
+                if self._levels_from_histogram or levels == self._painted_levels:
+                    self.hist.vb.updateAutoRange()       # settle a pending adaptive range before reading it
+                    lo, hi = self.hist.getHistogramRange()
+                    self.hist.setHistogramRange(min(lo, levels[0]), max(hi, levels[1]), padding=0)
+                else:
+                    self.hist.setHistogramRange(*levels)
+            else:
+                self.hist.autoHistogramRange()
+            for key, value in zip(("low", "high"), levels):
                 self.level_edits[key].set_value(value)
         finally:
             self._applying_levels = False
+        self._painted_levels = levels
 
     def _paint_tof_profile(self) -> None:
         prof = self.vm.tof_profile

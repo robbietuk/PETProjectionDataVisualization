@@ -24,9 +24,17 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-latest, windows-latest]
         python-version: ["3.11", "3.12", "3.13"]
+        pyside6: [""]           # "": whatever pip resolves from pyproject.toml
+        include:
+          # PySide6 6.12.0 over-releases None/True/False on Linux; pip will not pick it with Python 3.11
+          # (pyproject.toml), so force it here to prove the start-up guard (_refcount_guard.py) holds.
+          # A separate job: pyside6 differs from the "" above, so this include cannot merge into ubuntu/3.11.
+          - os: ubuntu-24.04
+            python-version: "3.11"
+            pyside6: "6.12.0"
       # let's run all of them, as opposed to aborting when one fails (as in STIR)
       fail-fast: false
-    name: ${{ matrix.os }}-py${{ matrix.python-version }}
+    name: ${{ matrix.os }}-py${{ matrix.python-version }}${{ matrix.pyside6 && format('-pyside{0}', matrix.pyside6) || '' }}
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
@@ -50,6 +58,10 @@ jobs:
         python -m pip install -U pip
         python -m pip install -e ".[test]"
 
+    - name: Force a PySide6 version (only where the matrix names one)
+      if: matrix.pyside6
+      run: python -m pip install "PySide6==${{ matrix.pyside6 }}"
+
     - name: pytest
       shell: bash
       run: |
@@ -68,7 +80,7 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: pytest-${{ matrix.os }}-py${{ matrix.python-version }}
+        name: pytest-${{ matrix.os }}-py${{ matrix.python-version }}${{ matrix.pyside6 && format('-pyside{0}', matrix.pyside6) || '' }}
         path: |
           pytest-results.xml
           pytest.log

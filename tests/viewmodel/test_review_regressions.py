@@ -62,7 +62,7 @@ def test_nan_and_inf_do_not_poison_the_levels():
     vm = make_vm(ArraySource({0: arr}))
     lo, hi = vm.levels
     assert np.isfinite([lo, hi]).all() and hi > lo
-    vm.set_level_mode(LevelMode.FIXED)
+    vm.lock_global_range()
     lo, hi = vm.levels
     assert np.isfinite([lo, hi]).all() and hi > lo
 
@@ -85,7 +85,7 @@ def test_loading_new_data_leaves_manual_mode_consistent():
     vm = make_vm()
     vm.set_manual_levels(1.0, 2.0)
     vm.load(small_demo())
-    assert vm.level_mode is LevelMode.AUTO and vm.levels != (1.0, 2.0)
+    assert vm.level_mode is LevelMode.ADAPTIVE and vm.levels != (1.0, 2.0)
 
 
 def test_load_demo_command_uses_the_injected_factory():
@@ -97,7 +97,7 @@ def test_load_demo_command_uses_the_injected_factory():
 def test_levels_can_be_typed_in_via_numeric_commands():
     vm = make_vm()
     vm.set_level_bounds(low=0.5)
-    assert vm.level_mode is LevelMode.MANUAL and vm.levels[0] == 0.5
+    assert vm.level_mode is LevelMode.LOCKED and vm.levels[0] == 0.5
     hi = vm.levels[1]
     vm.set_level_bounds(high=hi + 5)
     assert vm.levels == (0.5, hi + 5)

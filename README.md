@@ -136,9 +136,27 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 In the window: the *Slice* box chooses sinogram / viewgram / tangential slice; *Time of flight*
 chooses a single bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value, the
 bin indices, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor.
-Keys: Space play/pause, Left/Right step the active index, PgUp/PgDn change segment. When a slider, spin box
-or text field has the keyboard focus, these keys go to it instead (e.g. Right on the segment slider moves the
-segment). Min/Max level accept any number, including scientific notation such as `2.5e-8`.
+Keys: Space play/pause, Left/Right step the active index, PgUp/PgDn change segment, L lock/unlock the colour
+levels. When a slider, spin box or text field has the keyboard focus, these keys go to it instead (e.g. Right on
+the segment slider moves the segment, L typed in the path box is just a letter). Min/Max level accept any number,
+including scientific notation such as `2.5e-8`.
+
+Colour levels (*Display* card, *Levels* toggle):
+
+| | **Adaptive** (default) | **Locked** |
+|---|---|---|
+| Min/Max and the colour bar | recomputed from every slice shown | stay exactly the same |
+| Step view / axial / tangential / segment / TOF bin, play | follow the new slice | unchanged |
+| Sinogram / viewgram / tangential, Bin / Sum / Mean / Max | follow the new slice | unchanged |
+| Type Min or Max, drag the histogram | locks at the new values | stays locked at the new values |
+| *Lock to global range* | locks at the range of the whole data set (current TOF mode) | same, replaces the lock |
+| log(1 + x) display | recomputed in the new scale | the same data values, mapped through log(1 + x) |
+| Load another data set | adaptive | back to adaptive (old limits may mean nothing there) |
+| A read or load fails | unchanged | stays locked at the same values |
+
+Locking freezes what is on screen, including the colour bar's axis (locking by dragging the histogram does not
+rescale it under the mouse; typed levels and *Lock to global range* fit the axis to the new limits). While locked
+the header shows a chip such as *Levels locked 0 – 3.86*.
 
 ## Architecture (MVVM)
 
@@ -198,7 +216,7 @@ browse + typed path + Load, `launch(...)` with a path, a `stir.ProjData` or no a
 `-f FILE` on the command line, max-level control (now numeric Min/Max level boxes plus a draggable histogram).
 
 Changed on purpose: no matplotlib toolbar; the slice is always shown as a fixed image with axis ticks (no zoom/pan), File > Save image;
-vmin is no longer fixed at 0 (auto per slice, or fixed global range); the initial slice is the central one;
+vmin is no longer fixed at 0 (adaptive per slice, or locked, e.g. at the global range); the initial slice is the central one;
 the data summary is shown in the Information panel instead of the console.
 
 Dropped: the Qt style/palette selector; zoom/pan (the slice is always shown whole, as a fixed image).
@@ -208,10 +226,18 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 
 ## Known limitations
 
-* Everything runs on the UI thread. Collapsing TOF bins reads every bin of one segment, and *Fixed (global range)*
-  levels read the whole data set once (every segment and, for single bins, every TOF bin); on large TOF data this
+* Everything runs on the UI thread. Collapsing TOF bins reads every bin of one segment, and *Lock to global range*
+  reads the whole data set once (every segment and, for single bins, every TOF bin); on large TOF data this
   takes a while (a wait cursor is shown). Not measured on real data yet.
 * Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least
   recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
   not whole segments.
 * Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.13), and against real STIR from conda-forge.
+* PySide6 6.12.0 on Linux gives back references to `None`, `True` and `False` that it never took (about 64 per
+  repaint of the colour bar, measured on Python 3.11; 6.8.3 to 6.11.3, and 6.12.0 on macOS and Windows, are fine).
+  From Python 3.12 those objects are immortal and nothing happens, but on Python 3.11 the viewer aborted after a few
+  seconds of playback ("deallocating None" / "deallocating True or False", exit status 134). Two defences:
+  `pyproject.toml` does not let pip install PySide6 6.12 with Python < 3.12 (pip picks 6.11.x), and on CPython
+  < 3.12 the viewer raises the reference count of those three objects by 2**40 at start-up
+  (`_refcount_guard.py`, the same guard the test suite uses), which covers conda environments and any later PySide6
+  with the same bug. Python 3.12 or newer avoids the question entirely; the packaged app uses 3.12.

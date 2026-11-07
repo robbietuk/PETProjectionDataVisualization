@@ -8,6 +8,7 @@ from typing import Any
 
 from PySide6 import QtCore, QtWidgets
 
+from ._refcount_guard import protect_singletons
 from .sources import make_demo_source
 from .sources.loader import make_source
 from .view.styling import apply_theme
@@ -18,6 +19,7 @@ from .viewmodel import ViewerViewModel
 
 def build(stir_path: str | None = None, theme: str = DEFAULT_PALETTE.name) -> tuple[ViewerViewModel, ViewerWindow]:
     """Create the view model (with the real loader and demo data) and its window."""
+    protect_singletons()   # also here for callers that build their own window (idempotent)
     vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source)
     return vm, ViewerWindow(vm, PALETTES[theme])
 
@@ -78,6 +80,7 @@ def launch(projdata: Any = None, stir_path: str | None = None, demo: bool = Fals
 
     Blocks until the window is closed; returns the Qt exit code. A load failure is shown in the window.
     """
+    protect_singletons()   # Python 3.11 + PySide6 6.12 would otherwise abort mid-session (see the module)
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
     if theme not in PALETTES:
         raise ValueError(f"unknown theme {theme!r}; choose from {sorted(PALETTES)}")
