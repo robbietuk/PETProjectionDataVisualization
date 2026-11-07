@@ -47,12 +47,14 @@ pet-projection-data-visualization = "pet_projection_data_visualization.cli:main"
 [tool.hatch.build.targets.sdist]
 # an explicit list, so local folders (virtual envs, worktrees, app builds) never end up in the sdist
 include = [
-    "src/",
-    "tests/",
-    "scripts/",
-    "README.md",
-    "PLAN.md",
-    "environment.yml",
+    # anchored with a leading "/": an unanchored "src/" or "tests/" also matches such folders
+    # nested inside a virtual env or build/ and drags them in
+    "/src/",
+    "/tests/",
+    "/scripts/",
+    "/README.md",
+    "/PLAN.md",
+    "/environment.yml",
 ]
 
 [tool.hatch.build.targets.wheel]
