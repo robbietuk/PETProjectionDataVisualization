@@ -67,6 +67,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.resize(1320, 840)
         self._geometry_key: tuple | None = None
         self._applying_levels = False
+        self._levels_from_histogram = False     # set while a histogram drag is handed to the view model
+        self._painted_levels: tuple[float, float] | None = None
         self._build_menu()
         self._build_layout()
         self._pixel_label = QtWidgets.QLabel("")
@@ -359,7 +361,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _on_user_levels(self) -> None:
         if not self._applying_levels:
             lo, hi = self.hist.getLevels()
-            self.vm.set_manual_levels(lo, hi)
+            self._levels_from_histogram = True
+            try:
+                self.vm.set_manual_levels(lo, hi)
+            finally:
+                self._levels_from_histogram = False
 
     def _on_mouse_moved(self, scene_pos) -> None:
         vb = self.plot.vb
@@ -432,21 +438,32 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.level_control.set_choice(self.vm.level_mode)
 
     def _paint_levels(self) -> None:
-        """Levels into the histogram and the Min/Max boxes. While locked the colour bar's axis is pinned to
-        the levels too, so it stays exactly the same from slice to slice; adaptive, it follows the data."""
-        if self.vm.levels is None:
+        """Levels into the histogram and the Min/Max boxes. While locked the colour bar's axis is pinned
+        too, so it stays exactly the same from slice to slice; adaptive, it follows the data.
+
+        A lock made from what is on screen (the toggle, L, a drag in the histogram) keeps the axis where
+        it is, so the colour bar does not jump under the mouse; new values from elsewhere (typed, global
+        range, log display) fit the axis to the lock."""
+        levels = self.vm.levels
+        if levels is None:
             return
         self._applying_levels = True
         try:
-            self.hist.setLevels(*self.vm.levels)
+            self.hist.setLevels(*levels)
             if self.vm.level_mode is LevelMode.LOCKED:
-                self.hist.setHistogramRange(*self.vm.levels)
+                if self._levels_from_histogram or levels == self._painted_levels:
+                    self.hist.vb.updateAutoRange()       # settle a pending adaptive range before reading it
+                    lo, hi = self.hist.getHistogramRange()
+                    self.hist.setHistogramRange(min(lo, levels[0]), max(hi, levels[1]), padding=0)
+                else:
+                    self.hist.setHistogramRange(*levels)
             else:
                 self.hist.autoHistogramRange()
-            for key, value in zip(("low", "high"), self.vm.levels):
+            for key, value in zip(("low", "high"), levels):
                 self.level_edits[key].set_value(value)
         finally:
             self._applying_levels = False
+        self._painted_levels = levels
 
     def _paint_tof_profile(self) -> None:
         prof = self.vm.tof_profile

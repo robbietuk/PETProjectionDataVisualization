@@ -154,7 +154,9 @@ Colour levels (*Display* card, *Levels* toggle):
 | Load another data set | adaptive | back to adaptive (old limits may mean nothing there) |
 | A read or load fails | unchanged | stays locked at the same values |
 
-Locking freezes what is on screen; while locked the header shows a chip such as *Levels locked 0 – 3.86*.
+Locking freezes what is on screen, including the colour bar's axis (locking by dragging the histogram does not
+rescale it under the mouse; typed levels and *Lock to global range* fit the axis to the new limits). While locked
+the header shows a chip such as *Levels locked 0 – 3.86*.
 
 ## Architecture (MVVM)
 
@@ -231,3 +233,11 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
   recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
   not whole segments.
 * Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.13), and against real STIR from conda-forge.
+* PySide6 6.12.0 on Linux gives back references to `None`, `True` and `False` that it never took (about 64 per
+  repaint of the colour bar, measured on Python 3.11; 6.8.3 to 6.11.3, and 6.12.0 on macOS and Windows, are fine).
+  From Python 3.12 those objects are immortal and nothing happens, but on Python 3.11 the viewer aborted after a few
+  seconds of playback ("deallocating None" / "deallocating True or False", exit status 134). Two defences:
+  `pyproject.toml` does not let pip install PySide6 6.12 with Python < 3.12 (pip picks 6.11.x), and on CPython
+  < 3.12 the viewer raises the reference count of those three objects by 2**40 at start-up
+  (`_refcount_guard.py`, the same guard the test suite uses), which covers conda environments and any later PySide6
+  with the same bug. Python 3.12 or newer avoids the question entirely; the packaged app uses 3.12.

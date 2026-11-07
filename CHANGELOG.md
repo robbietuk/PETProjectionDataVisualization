@@ -32,8 +32,10 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   keeps Min/Max and the colour bar exactly constant while changing view, axial or tangential
   position, segment, TOF bin, TOF reduction, slice mode or log display, and during playback.
   Typing a level or dragging the histogram keeps the lock at the new values, *Lock to global range*
-  locks at the whole data set's range, and a "Levels locked lo – hi" chip shows the state. Loading
-  another data set starts adaptive again; a failed read or load keeps the lock.
+  locks at the whole data set's range, and a "Levels locked lo – hi" chip shows the state. Locking from
+  the screen (toggle, `L`, a drag in the histogram) keeps the colour bar's axis where it is; typed levels
+  and the global range fit it to the new limits. Loading another data set starts adaptive again; a failed
+  read or load keeps the lock.
 - **Keyboard.** Space plays or pauses, Left/Right step the active index and PgUp/PgDn change the
   segment. When a slider, spin box or text field has focus, the key goes to that widget instead.
 - **Finding STIR.** `--stir-path`, then `STIR_PYTHON_PATH`, then a plain `import stir`. A bad
@@ -64,13 +66,17 @@ These came out of two independent code reviews, before the split from STIR:
 
 - A failed load or slice read leaves the previous data, selection and widgets exactly as they were.
 - The TOF profile under a resting cursor updates whenever the slice changes.
-- Fixed global levels cover every TOF bin, so the colour scale does not change during playback.
+- The global level range covers every TOF bin, so levels locked to it do not change during playback.
 - The `(segment, tof)` overload of `get_segment_by_view` is used, which every `ProjData` subclass
   has.
 - Hovering reads single sinograms instead of whole segments, and the segment cache is capped at
   about 1 GiB.
 - Two tests assumed POSIX paths and failed on Windows.
 - A PySide6 crash during interpreter shutdown no longer fails the Linux/Python 3.11 test run.
+- Python 3.11 with PySide6 6.12.0 on Linux aborted after a few seconds of playback ("deallocating None",
+  exit status 134): that PySide6 release gives back references to `None`, `True` and `False` it never took.
+  pip no longer installs PySide6 6.12 with Python < 3.12, and on CPython < 3.12 the viewer (and the test suite)
+  make those three objects effectively immortal at start-up, as Python 3.12 does.
 - conda-forge `stir` on Windows looked for its config files in the wrong folder; CI sets
   `STIR_CONFIG_DIR` to the installed tables.
 

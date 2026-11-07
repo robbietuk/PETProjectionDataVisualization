@@ -92,6 +92,8 @@ class Harness:
         w.statusBar = lambda: self.status
         w.hist.setLevels = lambda lo, hi: self.set_levels.append((lo, hi, w._applying_levels))
         w.hist.getLevels = lambda: self.levels_widget
+        self.hist_axis = (-0.5, 2.5)                 # the colour bar's axis range on screen
+        w.hist.getHistogramRange = lambda: self.hist_axis
         w.img.setImage = lambda data, autoLevels=False: self.set_image.append(data.shape)
         w.img.setRect = lambda r: self.rect.append(r)
         w.info_view.setPlainText = self.info.append
@@ -231,16 +233,19 @@ def test_level_mode_control_follows_the_view_model(window_module):
 def test_locked_levels_pin_the_colour_bar_range_and_adaptive_frees_it(window_module):
     h = Harness(window_module, small_demo())
     ranges = []
-    h.win.hist.setHistogramRange = lambda lo, hi: ranges.append((lo, hi))
+    h.win.hist.setHistogramRange = lambda lo, hi, padding=0.1: ranges.append((lo, hi, padding))
     h.win.hist.autoHistogramRange = lambda: ranges.append("auto")
     h.vm.set_level_mode(LevelMode.LOCKED)
     locked = h.vm.levels
-    assert ranges[-1] == locked
+    on_screen = (min(-0.5, locked[0]), max(2.5, locked[1]), 0)
+    assert ranges[-1] == on_screen                    # locked from the screen: the axis the user sees stays
     h.vm.set_slice_mode(SliceMode.VIEWGRAM)           # views are the stepped index in viewgram mode
     for v in range(4):
         h.vm.set_value("view", v)
-    assert ranges == [locked] and h.vm.levels == locked     # never un-pinned; unchanged levels are not re-sent
+    assert ranges == [on_screen] and h.vm.levels == locked   # never un-pinned; unchanged levels are not re-sent
     assert h.set_levels[-1][:2] == locked
+    h.vm.set_level_bounds(high=40.0)                  # typed: the axis is fitted to the new lock
+    assert ranges[-1] == (locked[0], 40.0, 0.1)
     h.vm.set_level_mode(LevelMode.ADAPTIVE)
     assert ranges[-1] == "auto"
 

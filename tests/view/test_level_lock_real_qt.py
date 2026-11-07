@@ -201,3 +201,42 @@ def test_typing_L_into_the_path_box_types_it(win):
     win.path_edit.setText("/data/fi")
     _press(win.path_edit, Key.Key_L)
     assert win.path_edit.text() == "/data/fil" and win.vm.level_mode is LevelMode.ADAPTIVE
+
+
+# ---- the colour bar's axis when a lock is made ------------------------------------------------------
+def _axis(win):
+    QtWidgets.QApplication.processEvents()
+    return tuple(win.hist.getHistogramRange())
+
+
+def test_locking_from_the_toggle_keeps_the_colour_bar_axis_on_screen(win):
+    before = _axis(win)
+    _button(win, LevelMode.LOCKED).click()
+    assert _axis(win) == pytest.approx(before, rel=1e-9)
+    win.vm.set_value("axial", 0)
+    assert _axis(win) == pytest.approx(before, rel=1e-9)
+
+
+def test_dragging_the_histogram_while_adaptive_locks_without_moving_the_axis(win):
+    """The drag ends on sigLevelChangeFinished: the axis must not rescale under the mouse at release."""
+    before = _axis(win)
+    lo, hi = win.vm.levels
+    win.hist.setLevels(lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo))      # what the drag left on screen
+    win.hist.sigLevelChangeFinished.emit(win.hist)
+    assert win.vm.level_mode is LevelMode.LOCKED
+    assert win.vm.levels == pytest.approx((lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo)))
+    pinned = _axis(win)
+    assert pinned == pytest.approx(before, rel=1e-3)          # no visible jump (was rescaled to the levels)
+    for view in (0, 3, 5):
+        win.vm.set_value("axial", view)
+        assert _axis(win) == pinned and tuple(win.hist.getLevels()) == win.vm.levels
+
+
+def test_typed_levels_fit_the_axis_to_the_new_lock(win):
+    _button(win, LevelMode.LOCKED).click()
+    edit = win.level_edits["high"]
+    edit.setText("40")
+    edit.editingFinished.emit()
+    lo, hi = _axis(win)
+    assert win.vm.levels[1] == 40.0 and lo <= win.vm.levels[0] and hi >= 40.0
+    assert hi - lo < 1.5 * (40.0 - win.vm.levels[0])           # fitted to the lock, not left at the old axis
