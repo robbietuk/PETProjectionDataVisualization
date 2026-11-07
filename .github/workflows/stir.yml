@@ -74,6 +74,21 @@ jobs:
         python -m pip install --no-deps -e .
         python -c "import stir, stir_projdata_viewer; print('stir from', stir.__file__)"
 
+    - name: Point STIR at its config files
+      # conda-forge's win-64 stir 6.4.0 looks for <prefix>/share/STIR-6.3/config, which does not exist;
+      # STIR_CONFIG_DIR is STIR's documented override. Harmless where the default already works.
+      run: |
+        cfg=$(python - <<'PY'
+        import os, sys
+        for root, _, files in os.walk(sys.prefix):
+            if "radionuclide_info.json" in files:
+                print(root)
+                break
+        PY
+        )
+        echo "STIR config dir: ${cfg:-not found}"
+        if [ -n "$cfg" ]; then echo "STIR_CONFIG_DIR=$cfg" >> "$GITHUB_ENV"; fi
+
     - name: Fetch STIR test data
       run: |
         mkdir -p stir_data
