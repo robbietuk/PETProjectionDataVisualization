@@ -188,6 +188,7 @@ pip install -e .[test] && pytest
 | `tests/stir_interface` | SWIG gateway against a fake `stir`, adapter, one contract run on every handle implementation | numpy |
 | `tests/viewmodel` | every command, notification batching, levels, hover/profile, failure paths, seeded random-command invariants | numpy |
 | `tests/view` | window binding with stubbed Qt (always runs) and with real PySide6 offscreen (if installed) | Qt optional |
+| `tests/tooling` | the project itself: release checks and tag rules, changelog format, licence and SPDX headers, the CI helper scripts (`scripts/`) | numpy (Qt for the smoke test) |
 | `tests/stir_interface/test_real_stir_integration.py` | real bindings: contract, axis order vs STIR's own accessors, full stack on a real file | `stir` + a `.hs` (`STIR_TEST_PROJDATA`) |
 
 ## Differences from the old PyQt5/matplotlib tool
