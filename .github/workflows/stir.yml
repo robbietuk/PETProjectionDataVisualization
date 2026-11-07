@@ -75,19 +75,13 @@ jobs:
         python -c "import stir, stir_projdata_viewer; print('stir from', stir.__file__)"
 
     - name: Point STIR at its config files
-      # conda-forge's win-64 stir 6.4.0 looks for <prefix>/share/STIR-6.3/config, which does not exist;
-      # STIR_CONFIG_DIR is STIR's documented override. Harmless where the default already works.
+      # conda-forge's win-64 stir 6.4.0 ships <prefix>/Library/share/STIR-6.4/config but looks for
+      # <prefix>/share/STIR-6.3/config; STIR_CONFIG_DIR is STIR's documented override. Harmless elsewhere.
       run: |
-        cfg=$(python - <<'PY'
-        import os, sys
-        for root, _, files in os.walk(sys.prefix):
-            if "radionuclide_info.json" in files:
-                print(root)
-                break
-        PY
-        )
-        echo "STIR config dir: ${cfg:-not found}"
+        cfg=$(python -c "import glob,os,sys; c=sorted(glob.glob(os.path.join(sys.prefix,'Library','share','STIR-*','config'))+glob.glob(os.path.join(sys.prefix,'share','STIR-*','config'))); print(c[-1] if c else '')")
+        echo "::notice title=STIR config dir::${cfg:-not found under the env prefix}"
         if [ -n "$cfg" ]; then echo "STIR_CONFIG_DIR=$cfg" >> "$GITHUB_ENV"; fi
+        python -c "import os; print('STIR_CONFIG_DIR =', os.environ.get('STIR_CONFIG_DIR'))"
 
     - name: Fetch STIR test data
       run: |
@@ -101,6 +95,7 @@ jobs:
 
     - name: pytest with real STIR
       run: |
+        echo "::notice title=STIR_CONFIG_DIR in pytest step::${STIR_CONFIG_DIR:-unset}"
         for hs in stir_data/smalllong.hs stir_data/Utahscat600k_ca_seg4.hs; do
           echo "::group::pytest on $hs"
           # -rs lists skips; the real-STIR tests must not be among them
