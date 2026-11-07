@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression tests for the second independent code review (findings numbered as in that review)."""
+import os
+import re
 import sys
 import warnings
 
@@ -7,7 +9,7 @@ import numpy as np
 import pytest
 
 from fakes import CountingSource, FakeProjData, SinogramCountingSource, make_fake_stir, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode, TofMode
+from stir_projdata_viewer.model import ProjDataset, SliceMode, TofMode
 from stir_projdata_viewer.model.cache import LRUCache
 from stir_projdata_viewer.sources import ArraySource
 from stir_projdata_viewer.sources.array_source import standard_segment_sequence
@@ -226,10 +228,13 @@ def test_9_dataset_cache_budget_limits_memory_and_still_gives_right_answers():
 
 
 # ---- 10: path box / typed paths --------------------------------------------------------------------
-def test_10_clean_path_strips_quotes_and_expands_home(monkeypatch):
-    monkeypatch.setenv("HOME", "/home/me")
+def test_10_clean_path_strips_quotes_and_expands_home(monkeypatch, tmp_path):
+    home = str(tmp_path / "me")
+    monkeypatch.setenv("HOME", home)                 # POSIX
+    monkeypatch.setenv("USERPROFILE", home)          # Windows
     assert clean_path('  "C:\\\\data\\\\x.hs"  ') == "C:\\\\data\\\\x.hs"
-    assert clean_path("'~/a b.hs'") == "/home/me/a b.hs"
+    expanded = clean_path("'~/a b.hs'")
+    assert expanded == os.path.expanduser("~/a b.hs") and expanded.startswith(home) and expanded.endswith("a b.hs")
     assert clean_path("   ") == ""
 
 
@@ -261,9 +266,10 @@ def test_11_bad_explicit_path_is_still_an_error(monkeypatch):
 
 def test_11_explicit_path_with_stir_already_imported_elsewhere_warns(monkeypatch, tmp_path):
     fake = make_fake_stir(FakeProjData())
-    fake.__file__ = "/elsewhere/stir/__init__.py"
+    elsewhere = tmp_path / "elsewhere"
+    fake.__file__ = str(elsewhere / "stir" / "__init__.py")
     monkeypatch.setitem(sys.modules, "stir", fake)
-    with pytest.warns(RuntimeWarning, match="already imported from /elsewhere"):
+    with pytest.warns(RuntimeWarning, match="already imported from " + re.escape(str(elsewhere))):
         assert import_stir(str(tmp_path)) is fake
     fake.__file__ = str(tmp_path / "stir" / "__init__.py")
     with warnings.catch_warnings():

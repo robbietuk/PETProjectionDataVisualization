@@ -171,7 +171,7 @@ def test_level_edits_handle_tiny_values_and_snap_back_on_rejection(app):
 
 
 def _press(widget, key):
-    from PySide6 import QtCore, QtTest
+    from PySide6 import QtTest
     QtTest.QTest.keyClick(widget, key)
     QtWidgets.QApplication.processEvents()
 

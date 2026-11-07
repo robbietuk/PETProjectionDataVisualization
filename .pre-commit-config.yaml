@@ -1,0 +1,17 @@
+# Same generic hooks as STIR's .pre-commit-config.yaml, plus ruff for the Python code.
+# Run locally with:  pip install pre-commit && pre-commit run --all-files
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: check-added-large-files
+  - id: check-case-conflict
+  - id: check-toml
+  - id: check-merge-conflict
+  - id: check-yaml
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.12.7
+  hooks:
+  - id: ruff-check

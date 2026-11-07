@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression tests for defects found by the independent code review."""
 import numpy as np
-import pytest
 
 from fakes import CountingSource, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode, TofMode
+from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode
 from stir_projdata_viewer.sources import ArraySource
 from stir_projdata_viewer.viewmodel import LevelMode, ViewerViewModel
 
