@@ -7,6 +7,14 @@ import pytest
 
 _exit_status = 0
 
+# PySide6 6.12 on Python 3.11 loses a reference to None on calls into Python overrides from C++ (a gdb
+# backtrace on the Linux CI runner showed "none_dealloc: deallocating None" under QGraphicsView::paintEvent ->
+# a pyqtgraph paint() override). From Python 3.12 None is immortal, so only 3.11 is affected: there the
+# test run aborts once enough items have been painted. Holding extra references to None keeps its count
+# from reaching zero during the run. Test process only; see the pull request for the application side.
+if sys.version_info < (3, 12):
+    _NONE_REFS = [None] * 2_000_000
+
 
 def pytest_sessionfinish(session, exitstatus):
     global _exit_status

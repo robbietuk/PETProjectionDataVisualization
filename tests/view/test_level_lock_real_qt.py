@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """The level lock in the real window (PySide6 + pyqtgraph, offscreen). Skipped where Qt is not installed."""
 import os
-import sys
 
 import pytest
 
@@ -26,8 +25,7 @@ def app():
 
 @pytest.fixture(scope="module")
 def shown_window(app):
-    """One shown window for the whole module, like one session. (A fresh shown window per test aborted the
-    interpreter on the Linux / Python 3.11 CI runner after about a dozen of them.)"""
+    """One shown window for the whole module, like one session (cheaper than a window per test)."""
     w = ViewerWindow(ViewerViewModel(lambda o: o))
     w.resize(1200, 800)
     w.show()
@@ -170,9 +168,8 @@ def test_L_toggles_the_lock(win):
 
 @pytest.mark.parametrize("widget", ["path_edit", "level_low", "info_view", "colour_map"])
 def test_L_is_handed_to_a_focused_text_field_or_combo_not_the_shortcut(win, monkeypatch, widget):
-    """Drives the shortcut handler directly and records what it forwards. (Typing real key presses into a
-    QLineEdit aborted the interpreter on the Linux / Python 3.11 CI runner, with Space too, so the
-    end-to-end typing check below is skipped there.)"""
+    """Drives the shortcut handler directly and records what it forwards (whatever the platform does with
+    ShortcutOverride, the handler itself must hand a text widget its key)."""
     target = {"path_edit": win.path_edit, "level_low": win.level_edits["low"], "info_view": win.info_view,
               "colour_map": win.cmap_control._combo}[widget]
     target.setFocus()
@@ -199,8 +196,6 @@ def test_L_forwarded_to_a_text_field_types_the_letter(win):
         win.info_view.setReadOnly(True)                      # the window is shared by the whole module
 
 
-@pytest.mark.skipif(sys.platform.startswith("linux") and sys.version_info[:2] == (3, 11),
-                    reason="typing into a QLineEdit with QTest aborts PySide6 on the Linux / Python 3.11 runner")
 def test_typing_L_into_the_path_box_types_it(win):
     win.path_edit.setFocus()
     win.path_edit.setText("/data/fi")
