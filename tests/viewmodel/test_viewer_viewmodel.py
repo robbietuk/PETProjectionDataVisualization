@@ -413,3 +413,12 @@ def test_view_model_state_is_published_before_notification():
     vm.tick()
     tof, marker, title = snapshots[-1]
     assert marker == tof and f"TOF bin {tof}" in title
+
+
+def test_levels_of_a_constant_zero_slice_are_python_floats():
+    """``levels`` is ``(float, float)``. For an all-zero slice the minimum level width (float32 ``tiny``)
+    used to turn the maximum into a numpy float32."""
+    from pet_projection_data_visualization.sources.array_source import ArraySource
+    vm, _ = make_vm(ArraySource({0: np.zeros((4, 3, 5), dtype=np.float32)}))
+    lo, hi = vm.levels
+    assert lo == 0.0 < hi and type(lo) is float and type(hi) is float

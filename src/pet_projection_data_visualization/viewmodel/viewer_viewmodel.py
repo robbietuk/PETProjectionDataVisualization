@@ -392,7 +392,7 @@ class ViewerViewModel(ObservableObject):
         else:
             lo, hi = finite_range(disp) or (0.0, 1.0)
         if hi <= lo:
-            hi = lo + max(abs(lo) * 1e-6, np.finfo(np.float32).tiny)
+            hi = lo + max(abs(lo) * 1e-6, float(np.finfo(np.float32).tiny))
         return _Rendered(image, disp, (lo, hi), dataset.stats(image))
 
     def _update_tof_profile(self, indices: dict[str, int]) -> None:
