@@ -13,12 +13,30 @@ conda install -c conda-forge petprojectiondatavisualization
 installs the viewer, Qt and STIR together. This copy is the source of truth until
 the feedstock exists; after that, change the recipe in the feedstock instead.
 
+## How the recipe builds
+
+- The version is dynamic: `pyproject.toml` takes it from the git tag `vX.Y.Z` with
+  [hatch-vcs](https://github.com/ofek/hatch-vcs). The PyPI sdist has no git metadata,
+  so the version comes from its `PKG-INFO`, but hatchling still loads the `vcs` hook;
+  `hatch-vcs` is therefore a host requirement (without it the build fails with
+  `Unknown build hook: vcs`), next to `hatchling >=1.27` (needed for PEP 639
+  `license-files`).
+- `python_min` is not set in the recipe; conda-forge's global pin (3.11 at the time of
+  writing) is used. If conda-forge raises it, the recipe follows; this is still within
+  `requires-python = ">=3.11"`.
+- `LICENSE` and `NOTICE` are both packaged (`about.license_file`); they are in the
+  sdist through `license-files` in `pyproject.toml`.
+- Tests: the imports and `pip check` run on `python_min` and on the newest Python;
+  a script test runs `--help`, `--version` and `python -c "import stir"`, which checks
+  that the conda-forge `stir` package resolves next to the viewer.
+
 ## Before submitting
 
-1. `LICENSE` must be in the repository (Step 4 of `docs/PORT_PLAN.md`; not added yet);
-   the recipe's `license_file: LICENSE` fails without it.
+1. The recipe's base branches must be merged to `main`: `feature/versioning` (hatch-vcs
+   versioning, release workflow) and, through it, `port/rename` (`LICENSE`, `NOTICE`).
 2. Version 1.0.0 must be on PyPI as an sdist named
-   `petprojectiondatavisualization-1.0.0.tar.gz` (hatchling's normalised name).
+   `petprojectiondatavisualization-1.0.0.tar.gz` (hatchling's normalised name), built
+   from the `v1.0.0` tag.
 
 ## Submit to staged-recipes
 
@@ -63,8 +81,18 @@ the feedstock exists; after that, change the recipe in the feedstock instead.
 
 6. The linter bot (`conda-forge-admin`) comments on the PR with any lint
    problems; fix them and push until it reports the recipe is in excellent
-   condition and CI is green. Then comment
-   `@conda-forge/help-python, ready for review!` to ask for a review.
+   condition and CI is green. Then ask for a review in a new comment:
+
+   - Members of conda-forge comment `@conda-forge/help-python, ready for review!`
+     (the team for Python recipes in the staged-recipes PR template).
+   - First-time contributors cannot @-mention conda-forge teams (a GitHub limitation).
+     Comment `@conda-forge-admin, please ping team` instead; the admin bot then pings
+     the `staged-recipes` team for you
+     ([docs](https://conda-forge.org/docs/maintainer/infrastructure.html#conda-forge-admin-please-ping-team)).
+     If nobody reviews it promptly, ask on the conda-forge Zulip chat.
+
+   Also tick the PR template's checklist, including the comment from `robbietuk`
+   confirming they are willing to be listed as maintainer.
 
 7. A reviewer merges the PR. conda-forge then creates
    `conda-forge/petprojectiondatavisualization-feedstock`, adds `robbietuk` as a
