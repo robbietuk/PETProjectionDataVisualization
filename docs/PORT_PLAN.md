@@ -11,22 +11,22 @@ The overall release plan is the doc *PET Projection Data Visualization: extracti
 | Step | Branch | State |
 | --- | --- | --- |
 | 0. History split out of STIR | `main` | Done: 2 commits, all 383 tests pass, 1 skipped (real STIR) |
-| 1. CI | `ci/github-actions` | Pushed, CI running |
+| 1. CI | `ci/github-actions` | Pushed. Real STIR passes on Ubuntu and macOS; Windows path bugs and a Linux/3.11 exit abort fixed, rerunning |
 | 2. This plan | `docs/port-plan` | Pushed |
-| 3. Rename and metadata | `port/rename` | Waiting on the names (see Decisions) |
+| 3. Rename and metadata | `port/rename` | Pushed (on top of `ci/github-actions`), CI running |
 | 4. Headers and licence | `port/headers` | Waiting on the copyright line |
 | 5. Docs cleanup | `port/docs` | Not started |
 | 6. STIR setup window and `--check-stir` | `feature/stir-setup` | Not started |
 | 7. First release, 0.1.0 | tag `v0.1.0` | Not started |
-| 8. conda-forge recipe | `recipe/conda-forge` | After 7 |
+| 8. conda-forge recipe | `recipe/conda-forge` | Draft in progress (parallel session); submitted after 7 |
 | 9. STIR side | branch on `robbietuk/STIR` | After 7 |
+| 10. Desktop apps (double-click) | `feature/macos-app` | In progress (parallel session): macOS `.app`, Windows `.exe`, Linux folder build on free runners |
 
 ## Decisions needed
 
-- **Distribution and import names.** The repository is `PETProjectionDataVisualization`, and the PyPI name
-  will be the same (PyPI ignores case). The code still imports as `stir_projdata_viewer` and the command is
-  `stir-projdata-viewer`. Options: keep both, or rename them (for example `pet_projdata_viz` and
-  `pet-projdata-viz`). If renamed, `stir-projdata-viewer` can stay as a second command name.
+- **Names (decided).** Repository and PyPI name `PETProjectionDataVisualization`, import package
+  `pet_projection_data_visualization`, command `pet-projection-data-visualization`, conda-forge package
+  `petprojectiondatavisualization`.
 - **Copyright line** for the headers and `LICENSE`, for example `Copyright 2026 Robert Twyman Skelly`.
   The licence stays Apache-2.0, the same as STIR.
 - **STIR side.** Remove the in-tree copy from the STIR branch and leave a pointer to this package, or keep both.
@@ -119,3 +119,15 @@ pointing at this package. Then open an issue on UCL/STIR proposing the pointer.
 - CI on GitHub's runners, as opposed to locally (step 1 checks this).
 - Memory use and speed on large TOF data.
 - That the image orientation matches the old `stir.projdata_visualisation` tool.
+
+### 10. Desktop apps (`feature/macos-app`)
+
+A double-clickable build that includes conda-forge `stir`, made with PyInstaller: a `.app` for macOS, a one-folder
+`.exe` for Windows and a one-folder build for Linux. `app.yml` builds all three on the standard GitHub-hosted
+runners (`macos-latest`, `windows-latest`, `ubuntu-24.04`), which are free for public repositories, and uploads them as
+artifacts. Unsigned at first: on macOS, the first launch needs right-click > Open.
+
+## CI cost
+
+Every workflow uses only standard GitHub-hosted runners and free actions. For a public repository these have no
+minute limit. No larger runners or paid services.
