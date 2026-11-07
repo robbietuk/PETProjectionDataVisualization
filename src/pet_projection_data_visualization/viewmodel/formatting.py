@@ -66,6 +66,14 @@ def context_chips(info: ProjDataInfo, sel: Selection) -> tuple[str, ...]:
     return tuple(chips)
 
 
+def format_level_lock(lo: float, hi: float, log_display: bool = False) -> str:
+    """Chip shown while the colour levels are locked, e.g. ``Levels locked 0 – 3.86``. A limit that is
+    negligible next to the other (a float32 denormal above zero, say) is shown as 0."""
+    span = max(abs(lo), abs(hi))
+    lo, hi = (0.0 if abs(v) < 1e-6 * span else v for v in (lo, hi))
+    return f"Levels locked {lo:.4g} – {hi:.4g}" + ("  (log)" if log_display else "")
+
+
 def format_number(value: float) -> str:
     """Compact text for an editable number: 6 significant digits, scientific notation when needed."""
     return f"{float(value):.6g}"

@@ -24,12 +24,18 @@ STIR's `examples/python/projdata_viewer`.
 - **Inputs.** STIR projection data (`.hs` and anything `stir.ProjData.read_from_file` opens), read
   lazily one segment and one TOF bin at a time. Also numpy `.npy`/`.npz` files, including STIR's
   own `ProjData.as_array()` export saved with `axial_counts`, and a synthetic TOF demo (`--demo`).
-- **Levels.** Automatic per slice, a fixed global range over all segments and TOF bins, or manual.
-  The Min/Max boxes accept any magnitude, including values like `2.5e-8`. There is a draggable
+- **Levels.** Adaptive (per slice) or locked; a lock can be set at the global range over all
+  segments and TOF bins. The Min/Max boxes accept any magnitude, including values like `2.5e-8`. There is a draggable
   histogram and a log display switch.
 - **Interface.** A dark theme and a light theme whose text/background pairs are checked against
   WCAG AA contrast. Errors appear in an inline banner, there is an empty state, File > Save image,
   and a typed or pasted path box that strips quotes and expands `~`.
+- **Lockable colour levels.** An *Adaptive | Locked* toggle in the Display card (key `L`). Locked
+  keeps Min/Max and the colour bar exactly constant while changing view, axial or tangential
+  position, segment, TOF bin, TOF reduction, slice mode or log display, and during playback.
+  Typing a level or dragging the histogram keeps the lock at the new values, *Lock to global range*
+  locks at the whole data set's range, and a "Levels locked lo – hi" chip shows the state. Loading
+  another data set starts adaptive again; a failed read or load keeps the lock.
 - **Keyboard.** Space plays or pauses, Left/Right step the active index and PgUp/PgDn change the
   segment. When a slider, spin box or text field has focus, the key goes to that widget instead.
 - **Finding STIR.** `--stir-path`, then `STIR_PYTHON_PATH`, then a plain `import stir`. A bad
@@ -69,6 +75,10 @@ These came out of two independent code reviews, before the split from STIR:
 
 ### Changed
 
+- The three level modes *Auto*, *Fixed (global range)* and *Manual* became two, *Adaptive* and
+  *Locked* (`LevelMode.ADAPTIVE` / `LevelMode.LOCKED`). The global range is now the
+  *Lock to global range* action, and editing a level locks it. Toggling the log display no longer
+  drops edited levels: locked levels stay locked and are mapped through the same `log(1 + x)`.
 - The project was renamed from `stir-projdata-viewer`. The PyPI name is
   `PETProjectionDataVisualization`, the import package is `pet_projection_data_visualization` and
   the command is `pet-projection-data-visualization`.

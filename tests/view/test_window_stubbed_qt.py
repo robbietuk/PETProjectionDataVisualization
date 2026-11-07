@@ -120,7 +120,7 @@ def test_user_drag_becomes_manual_levels_but_programmatic_setlevels_is_ignored(w
     h = Harness(window_module, small_demo())
     h.levels_widget = (1.0, 2.0)
     h.win._on_user_levels()
-    assert h.vm.level_mode is LevelMode.MANUAL and h.vm.levels == (1.0, 2.0)
+    assert h.vm.level_mode is LevelMode.LOCKED and h.vm.levels == (1.0, 2.0)
     h.win._applying_levels = True
     h.levels_widget = (7.0, 9.0)
     h.win._on_user_levels()                    # ignored while we are the ones setting levels
@@ -218,13 +218,40 @@ def test_every_observable_property_is_bound(window_module):
 
 def test_level_mode_control_follows_the_view_model(window_module):
     h = Harness(window_module, small_demo())
-    chosen, enabled = [], []
+    chosen = []
     h.win.level_control.set_choice = chosen.append
-    h.win.level_control.set_choice_enabled = lambda v, e: enabled.append((v, e))
-    h.vm.set_manual_levels(1.0, 2.0)
-    assert chosen[-1] is LevelMode.MANUAL and enabled[-1] == (LevelMode.MANUAL, True)
-    h.vm.set_level_mode(LevelMode.AUTO)
-    assert enabled[-1] == (LevelMode.MANUAL, False)
+    h.vm.set_manual_levels(1.0, 2.0)                  # an edit locks
+    assert chosen[-1] is LevelMode.LOCKED
+    h.vm.set_level_mode(LevelMode.ADAPTIVE)
+    assert chosen[-1] is LevelMode.ADAPTIVE
+    h.vm.toggle_level_lock()
+    assert chosen[-1] is LevelMode.LOCKED
+
+
+def test_locked_levels_pin_the_colour_bar_range_and_adaptive_frees_it(window_module):
+    h = Harness(window_module, small_demo())
+    ranges = []
+    h.win.hist.setHistogramRange = lambda lo, hi: ranges.append((lo, hi))
+    h.win.hist.autoHistogramRange = lambda: ranges.append("auto")
+    h.vm.set_level_mode(LevelMode.LOCKED)
+    locked = h.vm.levels
+    assert ranges[-1] == locked
+    h.vm.set_slice_mode(SliceMode.VIEWGRAM)           # views are the stepped index in viewgram mode
+    for v in range(4):
+        h.vm.set_value("view", v)
+    assert ranges == [locked] and h.vm.levels == locked     # never un-pinned; unchanged levels are not re-sent
+    assert h.set_levels[-1][:2] == locked
+    h.vm.set_level_mode(LevelMode.ADAPTIVE)
+    assert ranges[-1] == "auto"
+
+
+def test_a_shortcut_toggles_the_level_lock(window_module):
+    h = Harness(window_module, small_demo())
+    called = []
+    h.win._run = lambda cmd, *a, **k: called.append(cmd.__name__)
+    for command in h.win._shortcut_commands.values():
+        command()
+    assert "toggle_level_lock" in called
 
 
 def test_typed_path_and_demo_go_through_view_model_commands(window_module):

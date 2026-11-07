@@ -229,7 +229,7 @@ def test_auto_levels_follow_the_slice():
 
 def test_fixed_levels_are_the_global_range_and_do_not_move_between_slices():
     vm, _ = make_vm()
-    vm.set_level_mode(LevelMode.FIXED)
+    vm.lock_global_range()
     lo, hi = vm.dataset.global_range(vm.selection)
     assert vm.levels == (lo, hi)
     vm.set_value("axial", 0)
@@ -243,7 +243,7 @@ def test_log_display_transforms_values_and_levels():
     raw = vm.dataset.slice(vm.selection).data
     vm.set_log_display(True)
     np.testing.assert_allclose(vm.image.data, np.log1p(raw), rtol=1e-6)
-    vm.set_level_mode(LevelMode.FIXED)
+    vm.lock_global_range()
     lo, hi = vm.dataset.global_range(vm.selection)
     assert vm.levels == pytest.approx((np.log1p(lo), np.log1p(hi)))
 
@@ -260,11 +260,11 @@ def test_log_display_handles_negative_values():
 def test_manual_levels_stick_across_slices_and_switch_the_mode():
     vm, _ = make_vm()
     vm.set_manual_levels(1.0, 2.0)
-    assert vm.level_mode is LevelMode.MANUAL and vm.levels == (1.0, 2.0)
+    assert vm.level_mode is LevelMode.LOCKED and vm.levels == (1.0, 2.0)
     vm.set_value("axial", 1)
     vm.tick()
     assert vm.levels == (1.0, 2.0)
-    vm.set_level_mode(LevelMode.AUTO)
+    vm.set_level_mode(LevelMode.ADAPTIVE)
     assert vm.levels != (1.0, 2.0)
 
 
@@ -273,22 +273,26 @@ def test_manual_levels_reject_empty_range():
     before = vm.levels
     vm.set_manual_levels(3.0, 3.0)
     vm.set_manual_levels(5.0, 1.0)
-    assert vm.levels == before and vm.level_mode is LevelMode.AUTO
+    assert vm.levels == before and vm.level_mode is LevelMode.ADAPTIVE
 
 
-def test_toggling_log_resets_manual_levels():
+def test_toggling_log_keeps_locked_levels_mapped_to_the_same_data_values():
+    """Changed on purpose: manual levels used to be dropped on a log toggle. Locked levels now stay locked
+    and are shown through the same log(1 + x) transform as the pixels."""
     vm, _ = make_vm()
     vm.set_manual_levels(1.0, 2.0)
     vm.set_log_display(True)
-    assert vm.level_mode is LevelMode.AUTO and vm.levels != (1.0, 2.0)
+    assert vm.level_mode is LevelMode.LOCKED
+    assert vm.levels == pytest.approx((np.log1p(1.0), np.log1p(2.0)))
+    vm.set_log_display(False)
+    assert vm.levels == (1.0, 2.0)                    # exactly: no drift from converting back and forth
 
 
-def test_stale_manual_levels_never_come_back_after_a_scale_change():
+def test_unlocking_after_a_scale_change_recomputes_from_the_slice():
     vm, _ = make_vm()
     vm.set_manual_levels(1.0, 2.0)
     vm.set_log_display(True)
-    vm.set_level_mode(LevelMode.MANUAL)             # user picks "Manual" again in the new scale
-    assert vm.levels != (1.0, 2.0)
+    vm.set_level_mode(LevelMode.ADAPTIVE)
     assert vm.levels == (float(vm.image.data.min()), float(vm.image.data.max()))
 
 
@@ -397,7 +401,7 @@ def test_every_command_notifies_at_most_once():
     commands = [lambda: vm.set_value("view", 5), lambda: vm.set_slice_mode(SliceMode.VIEWGRAM),
                 lambda: vm.set_tof_mode(TofMode.MEAN), lambda: vm.set_tof_mode(TofMode.BIN),
                 lambda: vm.tick(), lambda: vm.set_log_display(True), lambda: vm.hover_at(0, 0),
-                lambda: vm.set_manual_levels(0, 1), lambda: vm.set_level_mode(LevelMode.FIXED)]
+                lambda: vm.set_manual_levels(0, 1), lambda: vm.lock_global_range()]
     for cmd in commands:
         notes.clear()
         cmd()

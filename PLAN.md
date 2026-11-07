@@ -57,7 +57,7 @@ change swaps the array and levels with no figure rebuild. Axes show real bin num
 Extra information versus the old tool: dataset summary (scanner, TOF resolution/mashing when STIR
 exposes them), per-segment axial sizes, memory estimate, per-slice min/max/mean/std/sum/non-zero
 fraction, value + indices under the cursor, histogram with draggable levels, log display,
-fixed-global or per-slice levels, tangential slices.
+adaptive (per-slice) or locked levels (incl. lock to the global range), tangential slices.
 
 ## 3. Time of flight
 
