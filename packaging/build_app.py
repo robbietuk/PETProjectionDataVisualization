@@ -11,8 +11,8 @@ Results, in dist/:
     Linux    PETProjectionDataVisualization/      (one folder)        archive: .tar.gz
 
 The self-test runs the frozen executable headless (QT_QPA_PLATFORM=offscreen) on the demo data, and on
-``--sample`` (or $STIR_TEST_PROJDATA) when given. It fails unless ``stir`` is imported from inside
-the bundle.
+``--sample`` (or $STIR_TEST_PROJDATA) when given. It fails unless STIR's extension module and every
+non-system shared library loaded by the process come from inside the bundle.
 """
 from __future__ import annotations
 
@@ -52,17 +52,60 @@ def freeze(dist: Path, work: Path) -> Path:
     if sys.platform == "darwin":
         shutil.rmtree(dist / NAME, ignore_errors=True)  # intermediate folder; the .app has the same files
         app = dist / f"{NAME}.app"
+        add_root_etc(app / "Contents" / "Frameworks")
         # ad-hoc signature: needed for arm64 binaries to run at all (not a Developer ID signature)
         run(CODESIGN, "--force", "--deep", "-s", "-", app)
         run(CODESIGN, "--verify", "--deep", "--strict", app)
         return app
+    add_root_etc(dist / NAME / "_internal")
     return dist / NAME
+
+
+def add_root_etc(lib_dir: Path) -> None:
+    """ROOT (linked by STIR on macOS/Linux) reads etc/gitinfo.txt from the folder above libCore and
+    prints an error on every start without it. PyInstaller cannot place data outside its own folder,
+    so copy the file there after freezing (before signing)."""
+    gitinfo = Path(sys.prefix) / "etc" / "gitinfo.txt"
+    if gitinfo.is_file() and any(lib_dir.glob("libCore*")):
+        (lib_dir.parent / "etc").mkdir(exist_ok=True)
+        shutil.copy2(gitinfo, lib_dir.parent / "etc" / "gitinfo.txt")
 
 
 def executable(bundle: Path) -> Path:
     if sys.platform == "darwin":
         return bundle / "Contents" / "MacOS" / NAME
     return bundle / (NAME + (".exe" if sys.platform == "win32" else ""))
+
+
+def _system_library(path: str) -> bool:
+    """Libraries the OS provides, which the bundle is expected to use from the system."""
+    p = path.replace("\\", "/").lower()
+    if sys.platform == "darwin":
+        return p.startswith(("/usr/lib/", "/system/"))
+    if sys.platform == "win32":
+        root = os.environ.get("SystemRoot", r"C:\Windows").replace("\\", "/").lower().rstrip("/")
+        return p.startswith(root + "/")
+    return p.startswith(("/lib/", "/lib64/", "/usr/lib/", "/usr/lib64/"))
+
+
+def check_bundle_isolation(report: str, bundle: Path, tag: str) -> None:
+    """Fail unless the STIR extension module and every non-system shared library in the self-test
+    process came from inside the bundle (not from the build environment or another install)."""
+    def value(prefix: str) -> str:
+        return next((ln.removeprefix(prefix).strip() for ln in report.splitlines() if ln.startswith(prefix)), "")
+
+    inside = bundle.resolve()
+    native = value("stir._stir loaded from ")
+    if not native or not Path(native).resolve().is_relative_to(inside):
+        raise SystemExit(f"self-test {tag}: stir._stir was not loaded from inside {bundle} ({native!r})")
+    libs = [ln.removeprefix("native library ").strip() for ln in report.splitlines()
+            if ln.startswith("native library ")]
+    if not libs:
+        raise SystemExit(f"self-test {tag}: no list of loaded native libraries in the report")
+    outside = [p for p in libs if not _system_library(p) and not Path(p).resolve().is_relative_to(inside)]
+    if outside:
+        raise SystemExit(f"self-test {tag}: libraries loaded from outside the bundle:\n  " + "\n  ".join(outside))
+    print(f"== {tag}: stir._stir and all {len(libs)} loaded libraries are bundled or system ones", flush=True)
 
 
 def self_test(bundle: Path, args: list[str], tag: str, out_dir: Path) -> None:
@@ -76,10 +119,7 @@ def self_test(bundle: Path, args: list[str], tag: str, out_dir: Path) -> None:
     print(report, flush=True)
     if proc.returncode != 0:
         raise SystemExit(f"self-test {tag} failed with exit status {proc.returncode}")
-    stir_line = next((ln for ln in report.splitlines() if ln.startswith("stir imported from ")), "")
-    stir_file = Path(stir_line.removeprefix("stir imported from ").strip())
-    if not stir_line or not stir_file.resolve().is_relative_to(bundle.resolve()):
-        raise SystemExit(f"self-test {tag}: stir was not imported from inside {bundle} ({stir_line!r})")
+    check_bundle_isolation(report, bundle, tag)
     if not png.exists():
         raise SystemExit(f"self-test {tag}: no screenshot written")
 

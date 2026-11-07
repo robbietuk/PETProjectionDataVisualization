@@ -60,13 +60,30 @@ a = Analysis(
     excludes=[
         # parts of the stir package the viewer does not use (the old PyQt5 viewer, scipy-based helpers)
         "stir.projdata_visualisation", "stir.LBFGSBPC", "stir.Vision_files_preprocess",
-        "PyQt5", "PyQt6", "tkinter", "matplotlib", "scipy", "IPython", "pytest",
+        "PyQt5", "PyQt6", "matplotlib", "scipy", "IPython", "pytest",
+        # tkinter would bring Tcl/Tk; readline would bring GPL-3 libreadline/libhistory. Neither is used.
+        "tkinter", "_tkinter", "readline",
         "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.Qt3DCore", "PySide6.QtQuick",
         "PySide6.QtQml", "PySide6.QtMultimedia", "PySide6.QtPdf", "PySide6.QtCharts",
         "PySide6.QtDataVisualization", "PySide6.QtDesigner", "PySide6.QtSql", "PySide6.QtTest",
     ],
     noarchive=False,
 )
+# PyInstaller's conda support adds the shared libraries of the `python` package's conda dependencies
+# even when no bundled module uses them: drop GPL-3 readline/history and Tcl/Tk (only needed by the
+# excluded readline and tkinter modules; nothing else in the bundle links them).
+UNUSED_LIBS = ("libreadline", "libhistory", "libtcl", "libtk", "tcl8", "tk8")
+a.binaries = [e for e in a.binaries if not os.path.basename(e[0]).lower().startswith(UNUSED_LIBS)]
+a.datas = [e for e in a.datas  # their version symlinks (libreadline.8.dylib -> ...) are listed here
+           if not (e[2] == "SYMLINK" and os.path.basename(e[0]).lower().startswith(UNUSED_LIBS))]
+
+# licence notices of every conda package that contributed a file to the bundle (see third_party.py)
+sys.path.insert(0, str(HERE))
+from third_party import license_datas  # noqa: E402
+
+a.datas += license_datas(sys.prefix, [src for toc in (a.binaries, a.datas, a.pure) for _, src, _ in toc if src],
+                         Path(workpath) / "licenses")
+
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],

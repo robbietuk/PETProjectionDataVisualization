@@ -6,18 +6,22 @@ name: app
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
-    # also on pushes that change the packaging, so a work branch shows its results before a PR exists
-    branches:
-      - '**'
-    paths:
+    paths: &app-paths
       - 'packaging/**'
+      - 'src/**'
+      - 'scripts/ci_smoke.py'
+      - 'pyproject.toml'
       - '.github/workflows/app.yml'
+  # PR branches run once, through this trigger (any base branch)
   pull_request:
-    paths:
-      - 'packaging/**'
-      - '.github/workflows/app.yml'
+    paths: *app-paths
+
+permissions:
+  contents: read
 
 env:
   # STIR release the test data is taken from (raw files from github.com/UCL/STIR)

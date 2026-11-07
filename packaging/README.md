@@ -80,3 +80,16 @@ The builds are unsigned: no Developer ID and no notarisation.
 - The bundle ignores `STIR_PYTHON_PATH`, so it always uses its own STIR. `--stir-path` still
   overrides on purpose.
 - The macOS app is about 200 MB (76 MB zipped), mostly Qt, ICU, OpenBLAS and STIR/ROOT.
+
+## Licences and other notes
+
+- `licenses/THIRD_PARTY.txt` in the bundle (`Contents/Resources/licenses/` on macOS, `_internal/licenses/`
+  elsewhere) lists every conda-forge package that contributed a file: version, SPDX licence, home
+  page and the exact package URL. Each package's own licence files sit next to it. Sources are
+  on conda-forge and the upstream home pages. They include Qt/PySide6 (LGPL-3), STIR (Apache-2.0 and the
+  PARAPET licence), ROOT (LGPL-2.1), OpenBLAS and libgfortran.
+- GPL-3 readline/history and Tcl/Tk are deliberately left out (`readline` and `tkinter` are excluded).
+- ROOT's `etc/gitinfo.txt` goes next to the folder holding `libCore`, so ROOT no longer prints
+  *ReadGitInfo ... not found* at start-up.
+- The bundle contains some absolute paths of the build machine (in compiled-in defaults such as STIR's
+  config dir). They are not used at run time, because the bundle sets `STIR_CONFIG_DIR` itself.
