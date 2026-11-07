@@ -246,16 +246,17 @@ class EmptyState(QtWidgets.QWidget):
         for lbl in (self.title_label, self.hint_label):
             lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             lay.addWidget(lbl)
-        self.actions = QtWidgets.QHBoxLayout()
-        self.actions.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        lay.addLayout(self.actions)
+        # not ``self.actions``: that would shadow QWidget.actions()
+        self.action_row = QtWidgets.QHBoxLayout()
+        self.action_row.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        lay.addLayout(self.action_row)
 
     def add_action(self, text: str, slot, primary: bool = False) -> QtWidgets.QPushButton:
         b = QtWidgets.QPushButton(text)
         if primary:
             b.setProperty("variant", "primary")
         b.clicked.connect(lambda _=False: slot())
-        self.actions.addWidget(b)
+        self.action_row.addWidget(b)
         return b
 
 

@@ -95,6 +95,13 @@ def test_empty_state_actions_call_back(app):
     assert hits == [1] and btn.property("variant") == "primary"
 
 
+def test_empty_state_keeps_qwidget_actions(app):
+    """The button row must not shadow QWidget.actions() (it used to be stored as ``self.actions``)."""
+    es = ui.EmptyState("t", "h")
+    btn = es.add_action("Go", lambda: None)
+    assert es.actions() == [] and es.action_row.indexOf(btn) == 0
+
+
 def test_dimension_control_emits_only_for_user_edits(app):
     ctrl = ui.DimensionControl()
     seen = []
