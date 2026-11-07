@@ -27,6 +27,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 NAME = "PETProjectionDataVisualization"
+# Apple's tool, not the conda-forge sigtool `codesign` that an activated env puts first on PATH
+CODESIGN = "/usr/bin/codesign"
 
 
 def run(*cmd: str | os.PathLike, **kw) -> None:
@@ -45,8 +47,8 @@ def freeze(dist: Path, work: Path) -> Path:
         shutil.rmtree(dist / NAME, ignore_errors=True)  # intermediate folder; the .app has the same files
         app = dist / f"{NAME}.app"
         # ad-hoc signature: needed for arm64 binaries to run at all (not a Developer ID signature)
-        run("codesign", "--force", "--deep", "-s", "-", app)
-        run("codesign", "--verify", "--deep", "--strict", app)
+        run(CODESIGN, "--force", "--deep", "-s", "-", app)
+        run(CODESIGN, "--verify", "--deep", "--strict", app)
         return app
     return dist / NAME
 
@@ -81,7 +83,7 @@ def archive(bundle: Path, dist: Path) -> Path:
     stem = dist / f"{NAME}-{system}-{platform.machine().lower()}"
     if sys.platform == "darwin":  # ditto keeps the framework symlinks and the signature intact
         out = stem.with_suffix(".zip")
-        run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", bundle, out)
+        run("/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", bundle, out)
         return out
     fmt = "zip" if sys.platform == "win32" else "gztar"
     return Path(shutil.make_archive(str(stem), fmt, root_dir=bundle.parent, base_dir=bundle.name))

@@ -39,6 +39,7 @@ def _self_test(argv: list[str]) -> int:
 
     log_path = os.environ.get("PETPDV_SELF_TEST_LOG")
     log = open(log_path, "w", encoding="utf-8") if log_path else None  # noqa: SIM115
+    saved = sys.stdout, sys.stderr
     if log is not None:
         sys.stdout = sys.stderr = log
     try:
@@ -50,8 +51,15 @@ def _self_test(argv: list[str]) -> int:
         print(f"STIR_CONFIG_DIR={os.environ.get('STIR_CONFIG_DIR')}")
         print(f"exit status {rc}")
         return rc
+    except BaseException:
+        import traceback
+
+        traceback.print_exc()  # into the log, which is all a windowed executable has
+        return 1
     finally:
         if log is not None:
+            log.flush()
+            sys.stdout, sys.stderr = saved
             log.close()
 
 
