@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Description of projection data and the interface every data source implements.
 
 The model never talks to STIR directly: it only needs a ``ProjDataSource``.

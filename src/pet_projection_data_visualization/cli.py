@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Command line entry point: ``pet-projection-data-visualization [file] [--demo] [--stir-path DIR]``."""
 from __future__ import annotations
 

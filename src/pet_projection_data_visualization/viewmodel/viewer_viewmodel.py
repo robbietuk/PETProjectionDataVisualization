@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """VIEWMODEL layer: everything the window shows or does, with no widget code.
 
 The view binds to the observable properties below and calls the command methods. The view model

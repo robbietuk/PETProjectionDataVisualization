@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Choice lists shared by every control that offers the same choices (Qt-free).
 
 One ``ChoiceOptions`` describes a closed set of choices: what the user sees, what the view model
