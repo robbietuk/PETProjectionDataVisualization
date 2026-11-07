@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from . import __version__
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -18,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stir-path", metavar="DIR",
                    help="directory containing the 'stir' python package, e.g. <install prefix>/python "
                         "(default: $STIR_PYTHON_PATH, else whatever 'import stir' finds)")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--theme", choices=("dark", "light"), default="dark", help="colour scheme (default: dark)")
     return p
 

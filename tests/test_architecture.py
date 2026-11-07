@@ -132,7 +132,7 @@ def test_matplotlib_is_gone():
 def test_composition_root_is_the_only_top_level_module_that_wires_layers():
     """Only app.py (and the cli, which imports it lazily) may know about both view and sources."""
     for path in ROOT.glob("*.py"):
-        if path.name in ("app.py", "cli.py", "__main__.py", "__init__.py"):
+        if path.name in ("app.py", "cli.py", "__main__.py", "__init__.py", "_version.py"):  # _version.py: hatch-vcs
             continue
         raise AssertionError(f"unexpected top-level module {path.name}: put it in a layer")
 

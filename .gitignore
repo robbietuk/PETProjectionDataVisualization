@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 dist/
+src/pet_projection_data_visualization/_version.py
 .stir_config_dir
 .claude/
 build/
