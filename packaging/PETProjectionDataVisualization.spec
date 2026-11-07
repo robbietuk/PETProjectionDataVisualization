@@ -15,9 +15,22 @@ from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 HERE = Path(SPECPATH)
 ROOT = HERE.parent
 NAME = "PETProjectionDataVisualization"
-VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
-
 sys.path.insert(0, str(ROOT / "src"))
+
+
+def project_version() -> str:
+    """A static [project] version, else the package's own __version__ (dynamic, e.g. hatch-vcs)."""
+    static = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"].get("version")
+    if static:
+        return static
+    try:
+        from pet_projection_data_visualization import __version__
+    except ImportError:
+        return "0.0.0"
+    return __version__.split("+")[0]   # CFBundleVersion takes plain dotted numbers
+
+
+VERSION = project_version()
 
 
 def stir_config_dir() -> str:

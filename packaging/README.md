@@ -58,8 +58,10 @@ The builds are unsigned: no Developer ID and no notarisation.
   Privacy & Security*. Alternatively, run
   `xattr -dr com.apple.quarantine PETProjectionDataVisualization.app`.
 - **Windows:** SmartScreen may warn. Choose *More info > Run anyway*.
-- **Linux:** run `PETProjectionDataVisualization/PETProjectionDataVisualization`. It needs the
-  usual desktop Qt libraries (EGL/GL and libOpenGL, i.e. `libopengl0` on Debian/Ubuntu, xkbcommon, fontconfig, and the `xcb` libraries for X11).
+- **Linux:** run `PETProjectionDataVisualization/PETProjectionDataVisualization`. The build uses the
+  system's OpenGL and desktop libraries. On Debian/Ubuntu install:
+  `sudo apt-get install libegl1 libgl1 libopengl0 libglx0 libxkbcommon0 libfontconfig1 libdbus-1-3`
+  plus `libxcb-cursor0` for the X11 (`xcb`) platform plugin.
 
 ## Using it
 

@@ -5,3 +5,4 @@ __pycache__/
 dist/
 build/
 *.app/
+.stir_config_dir
