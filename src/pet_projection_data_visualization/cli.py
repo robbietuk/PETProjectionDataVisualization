@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-# Part of STIR (see STIR/LICENSE.txt).
+# Copyright 2026 Robert Twyman Skelly. Originally developed in STIR (https://github.com/UCL/STIR).
 """Command line entry point: ``pet-projection-data-visualization [file] [--demo] [--stir-path DIR]``."""
 from __future__ import annotations
 
 import argparse
 import sys
+
+from . import __version__
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stir-path", metavar="DIR",
                    help="directory containing the 'stir' python package, e.g. <install prefix>/python "
                         "(default: $STIR_PYTHON_PATH, else whatever 'import stir' finds)")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--theme", choices=("dark", "light"), default="dark", help="colour scheme (default: dark)")
     return p
 

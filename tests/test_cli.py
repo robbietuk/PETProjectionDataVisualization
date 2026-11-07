@@ -27,3 +27,16 @@ def test_theme_option():
     assert p.parse_args([]).theme == "dark" and p.parse_args(["--theme", "light"]).theme == "light"
     with pytest.raises(SystemExit):
         p.parse_args(["--theme", "neon"])
+
+
+def test_version_option_prints_the_package_version(capsys):
+    import re
+
+    from pet_projection_data_visualization import __version__
+    with pytest.raises(SystemExit) as e:
+        build_parser().parse_args(["--version"])
+    out = capsys.readouterr().out.strip()
+    assert e.value.code == 0 and out.endswith(__version__)
+    # PEP 440, as produced by hatch-vcs from a vX.Y.Z tag (plus .devN+g<hash> between tags)
+    assert re.fullmatch(r"\d+\.\d+\.\d+((a|b|rc)\d+)?(\.dev\d+)?(\+[0-9A-Za-z.]+)?|\d+\.\d+(\.dev\d+)?(\+[0-9A-Za-z.]+)?",
+                        __version__), __version__

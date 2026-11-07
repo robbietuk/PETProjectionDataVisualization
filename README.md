@@ -5,8 +5,14 @@ a time-of-flight (TOF) dimension you can step through, play back, or collapse.
 PySide6 + pyqtgraph (no matplotlib), Python >= 3.11. A development tool: run it as a script,
 no compiled executable.
 
-This is a rewrite of `examples/python/projdata_visualisation` (PyQt5 + matplotlib), which is
-left untouched on this branch. See [PLAN.md](PLAN.md) for design decisions and the roadmap.
+This started as a rewrite of STIR's `examples/python/projdata_visualisation` (PyQt5 + matplotlib), which is
+still part of STIR and unchanged. See [PLAN.md](PLAN.md) for design decisions and the roadmap.
+
+## Versions and changes
+
+Releases follow [semantic versioning](https://semver.org/); the version comes only from the git tag
+(`vX.Y.Z`). `pet-projection-data-visualization --version` prints it. See [CHANGELOG.md](CHANGELOG.md) for what changed
+and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests and releasing.
 
 ## Install
 
@@ -207,4 +213,4 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 * Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least
   recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
   not whole segments.
-* Written against PySide6 >= 6.6 and pyqtgraph >= 0.13.7 but not yet run against them: see PLAN.md section 4.
+* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.13), and against real STIR from conda-forge.
