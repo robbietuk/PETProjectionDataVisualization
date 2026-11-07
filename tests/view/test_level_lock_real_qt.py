@@ -181,7 +181,18 @@ def test_L_toggles_the_lock(win):
 
 
 def test_L_goes_to_a_focused_text_field_not_the_shortcut(win):
+    orig = win._on_shortcut
+
+    def traced(k):
+        _trace(f"shortcut {k} focus={type(win.focusWidget()).__name__}")
+        orig(k)
+        _trace("shortcut done")
+    win._on_shortcut = traced
     win.path_edit.setFocus()
+    win.path_edit.setText("/data/fi")
+    _press(win.path_edit, Key.Key_Space)
+    _press(win.path_edit, Key.Key_A)
+    _trace(f"text {win.path_edit.text()!r}")
     win.path_edit.setText("/data/fi")
     _press(win.path_edit, Key.Key_L)
     assert win.path_edit.text() == "/data/fil" and win.vm.level_mode is LevelMode.ADAPTIVE
