@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Create a self-contained conda-forge prefix holding STIR, Qt and PyInstaller.
 
-    uv run --no-project --with 'py-rattler>=0.28' python packaging/macos/make_env.py build/env
+    uv run --no-project --with 'py-rattler>=0.28' python packaging/make_env.py build/env
 
 Uses py-rattler (the conda solver/installer library behind pixi, installed from PyPI by uv)
 so that no conda/mamba installation and no shell-profile changes are needed.  Nothing is
@@ -15,7 +15,21 @@ from pathlib import Path
 
 from rattler import Platform, VirtualPackage, install, solve
 
-SPECS = ["python=3.12", "stir>=6.4", "numpy", "pyside6", "pyqtgraph", "pyinstaller", "pytest"]
+ENV_FILE = Path(__file__).with_name("environment-app.yml")
+
+
+def read_specs(path: Path = ENV_FILE) -> list[str]:
+    """The ``dependencies:`` list of a conda environment file (plain specs only, comments dropped)."""
+    specs, in_deps = [], False
+    for line in path.read_text().splitlines():
+        text = line.split("#", 1)[0].rstrip()
+        if not text:
+            continue
+        if not text.startswith(" "):
+            in_deps = text.startswith("dependencies:")
+        elif in_deps and text.lstrip().startswith("- "):
+            specs.append(text.lstrip()[2:].strip())
+    return specs
 
 
 async def create(prefix: Path, specs: list[str]) -> None:
@@ -38,7 +52,7 @@ def main() -> None:
     args = p.parse_args()
     prefix = args.prefix.resolve()
     prefix.parent.mkdir(parents=True, exist_ok=True)
-    asyncio.run(create(prefix, SPECS + args.spec))
+    asyncio.run(create(prefix, read_specs() + args.spec))
     print(f"created {prefix}")
 
 

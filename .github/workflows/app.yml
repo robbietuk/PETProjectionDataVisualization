@@ -1,0 +1,87 @@
+# Build the frozen viewer with STIR inside on macOS, Windows and Linux (free GitHub-hosted runners),
+# smoke-run it headless, and upload it: a zipped .app (macOS), a zipped one-folder .exe build
+# (Windows) and a tar.gz one-folder build (Linux). See packaging/README.md.
+name: app
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+    # also on pushes that change the packaging, so a work branch shows its results before a PR exists
+    branches:
+      - '**'
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/app.yml'
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/app.yml'
+
+env:
+  # STIR release the test data is taken from (raw files from github.com/UCL/STIR)
+  STIR_DATA_TAG: rel_6.4.0
+
+jobs:
+  app:
+    defaults:
+      run:
+        shell: bash -leo pipefail {0}   # login shell, so the micromamba environment is active
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+      fail-fast: false
+    name: app-${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup conda environment
+      uses: mamba-org/setup-micromamba@v2
+      with:
+        environment-file: packaging/environment-app.yml
+        cache-environment: true
+        cache-downloads: true
+
+    - name: Qt system libraries (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+
+    - name: Fetch STIR test data
+      run: |
+        mkdir -p build/sample
+        for ext in hs s; do
+          curl -fsSL --retry 3 -o "build/sample/smalllong.$ext" \
+            "https://raw.githubusercontent.com/UCL/STIR/${STIR_DATA_TAG}/examples/recon_demo/smalllong.$ext"
+        done
+
+    - name: Build, self-test and archive the app
+      env:
+        QT_QPA_PLATFORM: offscreen
+      run: python packaging/build_app.py --archive --sample build/sample/smalllong.hs 2>&1 | tee build/build.log
+
+    - name: Report the build failure as annotations
+      if: failure()
+      run: python scripts/ci_annotate.py build/build.log
+
+    - name: Upload the app
+      uses: actions/upload-artifact@v4
+      with:
+        name: PETProjectionDataVisualization-${{ runner.os }}
+        path: |
+          dist/*.zip
+          dist/*.tar.gz
+        if-no-files-found: error
+
+    - name: Upload self-test output
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: selftest-${{ runner.os }}
+        path: |
+          build/selftest_*
+          build/build.log
+        retention-days: 7
