@@ -47,6 +47,8 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0          # tags, for the version (hatch-vcs)
 
     - name: Setup conda environment
       uses: mamba-org/setup-micromamba@v2

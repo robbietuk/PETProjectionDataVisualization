@@ -8,6 +8,12 @@ no compiled executable.
 This is a rewrite of `examples/python/projdata_visualisation` (PyQt5 + matplotlib), which is
 left untouched on this branch. See [PLAN.md](PLAN.md) for design decisions and the roadmap.
 
+## Versions and changes
+
+Releases follow [semantic versioning](https://semver.org/); the version comes only from the git tag
+(`vX.Y.Z`). `pet-projection-data-visualization --version` prints it. See [CHANGELOG.md](CHANGELOG.md) for what changed
+and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests and releasing.
+
 ## Install
 
 STIR's Python module is a compiled extension and is **not** a pip dependency; the viewer finds it
