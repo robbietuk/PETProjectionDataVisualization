@@ -32,6 +32,10 @@ def _trace(msg):  # TEMPORARY CI diagnostic: bypasses capture and buffering
 def _trace_tests(request):
     _CAPMAN[:] = [request.config.pluginmanager.getplugin("capturemanager")]
     _trace(f"start {request.node.name}")
+    import gc
+    _trace(f"gc {gc.get_count()}")
+    gc.collect()
+    _trace("gc done")
     yield
     _trace(f"end {request.node.name}")
 
