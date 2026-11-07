@@ -89,12 +89,16 @@ jobs:
         for hs in stir_data/smalllong.hs stir_data/Utahscat600k_ca_seg4.hs; do
           echo "::group::pytest on $hs"
           # -rs lists skips; the real-STIR tests must not be among them
-          STIR_TEST_PROJDATA="$hs" python -m pytest -ra --junitxml="pytest-$(basename "$hs" .hs).xml"
+          STIR_TEST_PROJDATA="$hs" python -m pytest -ra --junitxml="pytest-$(basename "$hs" .hs).xml" 2>&1 | tee -a pytest.log
           echo "::endgroup::"
         done
         STIR_TEST_PROJDATA=stir_data/smalllong.hs python -m pytest -q tests/stir_interface/test_real_stir_integration.py -rs \
           | tee real_stir.log
         if grep -q "SKIPPED" real_stir.log; then echo "real-STIR tests were skipped"; exit 1; fi
+
+    - name: Report pytest failures as annotations
+      if: failure()
+      run: python scripts/ci_annotate.py pytest.log
 
     - name: Smoke run of the real window on STIR data
       run: python scripts/ci_smoke.py stir_data/smalllong.hs --out ci_smoke.png
@@ -107,5 +111,6 @@ jobs:
         path: |
           pytest-*.xml
           real_stir.log
+          pytest.log
           ci_smoke.png
         retention-days: 7

@@ -58,7 +58,15 @@ jobs:
         python -m pip install -e ".[test]"
 
     - name: pytest
-      run: python -m pytest -ra --junitxml=pytest-results.xml
+      shell: bash
+      run: |
+        set -o pipefail
+        python -m pytest -ra --junitxml=pytest-results.xml 2>&1 | tee pytest.log
+
+    - name: Report pytest failures as annotations
+      if: failure()
+      shell: bash
+      run: python scripts/ci_annotate.py pytest.log
 
     - name: Smoke run of the real window (demo data)
       run: python scripts/ci_smoke.py --demo --out ci_smoke.png
@@ -70,5 +78,6 @@ jobs:
         name: pytest-${{ matrix.os }}-py${{ matrix.python-version }}
         path: |
           pytest-results.xml
+          pytest.log
           ci_smoke.png
         retention-days: 7
