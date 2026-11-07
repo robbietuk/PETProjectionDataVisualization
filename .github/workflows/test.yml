@@ -1,0 +1,74 @@
+# Main test job. Modelled on STIR's build-test.yml: same kind of triggers and paths-ignore,
+# a matrix that runs to the end (fail-fast: false), and logs uploaded on failure.
+# Runs the same command as locally: `pytest` from the repository root (offscreen Qt).
+# The real-STIR tests skip here; they run in stir.yml.
+name: tests
+
+on:
+  push:
+    # every branch, so pushed work branches are tested before they are merged
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.html'
+      - '**/*.htm'
+      - '**/*.tex'
+      - 'CITATION.cff'
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.html'
+      - '**/*.htm'
+      - '**/*.tex'
+      - 'CITATION.cff'
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+      # let's run all of them, as opposed to aborting when one fails (as in STIR)
+      fail-fast: false
+    name: ${{ matrix.os }}-py${{ matrix.python-version }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+
+    - name: Qt system libraries (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+
+    - name: Install
+      run: |
+        python -m pip install -U pip
+        python -m pip install -e ".[test]"
+
+    - name: pytest
+      run: python -m pytest -ra --junitxml=pytest-results.xml
+
+    - name: Smoke run of the real window (demo data)
+      run: python scripts/ci_smoke.py --demo --out ci_smoke.png
+
+    - name: Upload test results for debugging
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: |
+          pytest-results.xml
+          ci_smoke.png
+        retention-days: 7
