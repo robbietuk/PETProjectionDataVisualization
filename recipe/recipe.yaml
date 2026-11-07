@@ -54,7 +54,7 @@ about:
   repository: https://github.com/robbietuk/PETProjectionDataVisualization
   summary: Interactive PySide6 viewer for STIR projection data (sinograms, viewgrams, TOF bins)
   license: Apache-2.0
-  # LICENSE is added to the repository on the `port/headers` branch; it must be
+  # LICENSE is not in the repository yet (docs/PORT_PLAN.md, step 4); it must be
   # merged (and so be in the 1.0.0 sdist) before this recipe is submitted.
   license_file: LICENSE
 
