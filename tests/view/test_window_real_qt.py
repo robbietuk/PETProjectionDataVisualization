@@ -11,9 +11,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6 import QtWidgets  # noqa: E402
 
 from fakes import non_tof_source, small_demo  # noqa: E402
-from stir_projdata_viewer.model import SliceMode, TofMode  # noqa: E402
-from stir_projdata_viewer.view.window import ViewerWindow  # noqa: E402
-from stir_projdata_viewer.viewmodel import LevelMode, ViewerViewModel  # noqa: E402
+from pet_projection_data_visualization.model import SliceMode, TofMode  # noqa: E402
+from pet_projection_data_visualization.view.window import ViewerWindow  # noqa: E402
+from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -119,7 +119,7 @@ def test_empty_state_until_data_is_loaded(app):
 
 
 def test_theme_switch_restyles_without_losing_state(win):
-    from stir_projdata_viewer.view.theme import LIGHT
+    from pet_projection_data_visualization.view.theme import LIGHT
     win.act_light.setChecked(True)
     assert win.palette_tokens is LIGHT
     assert win.vm.loaded and win.img.image.shape == (12, 15)
@@ -142,7 +142,7 @@ def test_typed_level_and_path_controls(win, tmp_path):
     _type_into(win.level_edits["high"], "123")
     assert win.vm.level_mode is LevelMode.MANUAL and win.vm.levels[1] == 123.0
     np.save(tmp_path / "a.npy", np.zeros((4, 3, 5), dtype=np.float32))
-    win.vm._factory = __import__("stir_projdata_viewer.sources.loader", fromlist=["x"]).make_source
+    win.vm._factory = __import__("pet_projection_data_visualization.sources.loader", fromlist=["x"]).make_source
     win.path_edit.setText(f'  "{tmp_path / "a.npy"}"  ')             # Windows "Copy as path" style
     win._load_typed_path()
     assert win.vm.dataset.info.num_views == 4 and win.path_edit.text() == str(tmp_path / "a.npy")
@@ -151,7 +151,7 @@ def test_typed_level_and_path_controls(win, tmp_path):
 def test_level_edits_handle_tiny_values_and_snap_back_on_rejection(app):
     """Review finding: 6 fixed decimals showed 1e-8-sized data as 0/0, and a rejected bound stayed displayed."""
     import numpy as np
-    from stir_projdata_viewer.sources import ArraySource
+    from pet_projection_data_visualization.sources import ArraySource
     vm = ViewerViewModel(lambda o: o)
     w = ViewerWindow(vm)
     try:

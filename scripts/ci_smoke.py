@@ -27,8 +27,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from PySide6 import QtWidgets
 
-    from stir_projdata_viewer.app import build
-    from stir_projdata_viewer.model import SliceMode
+    from pet_projection_data_visualization.app import build
+    from pet_projection_data_visualization.model import SliceMode
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
     vm, window = build()

@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from fakes import FakeHandle, FakeProjData, FakeProjDataIndicesOnly, make_fake_stir, small_demo
-from stir_projdata_viewer.stir_interface import ProjDataLayout, StirProjDataHandle
-from stir_projdata_viewer.stir_interface.swig_gateway import SwigStirGateway
+from pet_projection_data_visualization.stir_interface import ProjDataLayout, StirProjDataHandle
+from pet_projection_data_visualization.stir_interface.swig_gateway import SwigStirGateway
 
 
 def check_handle_contract(h: StirProjDataHandle) -> None:

@@ -1,14 +1,30 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "stir-projdata-viewer"
+name = "PETProjectionDataVisualization"
 version = "0.1.0"
 description = "Interactive PySide6 viewer for STIR projection data (sinograms, viewgrams, TOF bins)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Robert Twyman Skelly", email = "robbietuk@gmail.com" }]
+keywords = ["PET", "STIR", "sinogram", "projection data", "time of flight", "visualization", "Qt"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Environment :: X11 Applications :: Qt",
+]
 dependencies = [
     "numpy>=1.24.3",
     "PySide6>=6.6",
@@ -17,14 +33,32 @@ dependencies = [
 # NOTE: `stir` is deliberately NOT listed. It is a compiled SWIG extension that
 # is not on PyPI; it is discovered at run time (see PLAN.md, "Getting STIR").
 
+[project.urls]
+Homepage = "https://github.com/robbietuk/PETProjectionDataVisualization"
+Source = "https://github.com/robbietuk/PETProjectionDataVisualization"
+Issues = "https://github.com/robbietuk/PETProjectionDataVisualization/issues"
+
 [project.optional-dependencies]
 test = ["pytest>=7"]
 
 [project.scripts]
-stir-projdata-viewer = "stir_projdata_viewer.cli:main"
+pet-projection-data-visualization = "pet_projection_data_visualization.cli:main"
+
+[tool.hatch.build.targets.sdist]
+# an explicit list, so local folders (virtual envs, worktrees, app builds) never end up in the sdist
+include = [
+    # anchored with a leading "/": an unanchored "src/" or "tests/" also matches such folders
+    # nested inside a virtual env or build/ and drags them in
+    "/src/",
+    "/tests/",
+    "/scripts/",
+    "/README.md",
+    "/PLAN.md",
+    "/environment.yml",
+]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/stir_projdata_viewer"]
+packages = ["src/pet_projection_data_visualization"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

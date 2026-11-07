@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from fakes import small_demo
-from stir_projdata_viewer.sources.loader import make_source
-from stir_projdata_viewer.stir_interface import StirNotFoundError
+from pet_projection_data_visualization.sources.loader import make_source
+from pet_projection_data_visualization.stir_interface import StirNotFoundError
 
 
 def test_npy_path(tmp_path):

@@ -64,7 +64,7 @@ jobs:
     - name: Install the viewer without dependencies (conda provides them)
       run: |
         python -m pip install --no-deps -e .
-        python -c "import stir, stir_projdata_viewer; print('stir from', stir.__file__)"
+        python -c "import stir, pet_projection_data_visualization; print('stir from', stir.__file__)"
 
     - name: Find STIR's config files
       # conda-forge stir's activation script sets STIR_CONFIG_DIR, but on win-64 to <prefix>/share/...

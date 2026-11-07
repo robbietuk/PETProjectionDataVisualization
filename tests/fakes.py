@@ -6,9 +6,9 @@ import types
 
 import numpy as np
 
-from stir_projdata_viewer.model import ProjDataInfo
-from stir_projdata_viewer.sources import ArraySource, make_demo_source
-from stir_projdata_viewer.stir_interface import ProjDataLayout
+from pet_projection_data_visualization.model import ProjDataInfo
+from pet_projection_data_visualization.sources import ArraySource, make_demo_source
+from pet_projection_data_visualization.stir_interface import ProjDataLayout
 
 
 def small_demo(**kw) -> ArraySource:

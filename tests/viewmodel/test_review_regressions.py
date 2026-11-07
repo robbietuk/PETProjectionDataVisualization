@@ -3,9 +3,9 @@
 import numpy as np
 
 from fakes import CountingSource, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode
-from stir_projdata_viewer.sources import ArraySource
-from stir_projdata_viewer.viewmodel import LevelMode, ViewerViewModel
+from pet_projection_data_visualization.model import ProjDataset, Selection, SliceMode
+from pet_projection_data_visualization.sources import ArraySource
+from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel
 
 
 def make_vm(source=None):

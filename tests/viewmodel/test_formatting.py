@@ -2,8 +2,8 @@
 import numpy as np
 
 from fakes import non_tof_source, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, compute_stats
-from stir_projdata_viewer.viewmodel import formatting
+from pet_projection_data_visualization.model import ProjDataset, Selection, compute_stats
+from pet_projection_data_visualization.viewmodel import formatting
 
 
 def test_describe_dataset_tof():
@@ -18,7 +18,7 @@ def test_describe_dataset_non_tof_and_extra_fields():
     text = formatting.describe_dataset(info)
     assert "(non-TOF)" in text
     assert "format" not in text                                  # ArraySource without extra
-    from stir_projdata_viewer.model import ProjDataInfo
+    from pet_projection_data_visualization.model import ProjDataInfo
     with_extra = ProjDataInfo("n", 0, 0, 0, 1, 0, 1, {0: (0, 0)}, extra={"scanner": "Biograph"})
     assert "scanner: Biograph" in formatting.describe_dataset(with_extra)
 

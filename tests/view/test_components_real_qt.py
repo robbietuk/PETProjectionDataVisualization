@@ -10,11 +10,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6 import QtWidgets  # noqa: E402
 
-from stir_projdata_viewer.model import SliceMode  # noqa: E402
-from stir_projdata_viewer.view import components as ui  # noqa: E402
-from stir_projdata_viewer.view.styling import apply_theme  # noqa: E402
-from stir_projdata_viewer.view.theme import DARK, LIGHT  # noqa: E402
-from stir_projdata_viewer.viewmodel import COLORMAP_OPTIONS, SLICE_MODE_OPTIONS  # noqa: E402
+from pet_projection_data_visualization.model import SliceMode  # noqa: E402
+from pet_projection_data_visualization.view import components as ui  # noqa: E402
+from pet_projection_data_visualization.view.styling import apply_theme  # noqa: E402
+from pet_projection_data_visualization.view.theme import DARK, LIGHT  # noqa: E402
+from pet_projection_data_visualization.viewmodel import COLORMAP_OPTIONS, SLICE_MODE_OPTIONS  # noqa: E402
 
 
 @pytest.fixture(scope="module")

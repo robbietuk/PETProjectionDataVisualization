@@ -4,7 +4,7 @@ import dataclasses
 import pytest
 
 from fakes import non_tof_source, small_demo
-from stir_projdata_viewer.model import DIMENSIONS, Selection, SliceMode, TofMode
+from pet_projection_data_visualization.model import DIMENSIONS, Selection, SliceMode, TofMode
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def test_initial_is_central_and_valid(info):
 
 
 def test_initial_when_segment_zero_or_tangential_zero_absent():
-    from stir_projdata_viewer.model import ProjDataInfo
+    from pet_projection_data_visualization.model import ProjDataInfo
     info = ProjDataInfo("x", 1, 2, 0, 3, 5, 9, {1: (0, 3), 2: (0, 1)})
     s = Selection.initial(info)
     assert (s.segment, s.tangential) == (1, 5) and s.is_valid_for(info)

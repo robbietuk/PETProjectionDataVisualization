@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 
-from stir_projdata_viewer.model import SliceMode, TofMode
-from stir_projdata_viewer.viewmodel import (COLORMAP_OPTIONS, COLORMAPS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS,
+from pet_projection_data_visualization.model import SliceMode, TofMode
+from pet_projection_data_visualization.viewmodel import (COLORMAP_OPTIONS, COLORMAPS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS,
                                             TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, LevelMode,
                                             ViewerViewModel, observed_names)
-from stir_projdata_viewer.viewmodel.observable import ObservableObject, Observed
+from pet_projection_data_visualization.viewmodel.observable import ObservableObject, Observed
 
 
 # ---- ChoiceOptions ------------------------------------------------------------------

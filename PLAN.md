@@ -86,7 +86,7 @@ Next steps, roughly in order:
   bugs are caught).
 * **Not verified:** running under real PySide6/pyqtgraph (PyPI is unreachable from the authoring
   sandbox) and against the real `stir` bindings. First things to check on a real machine:
-  `pytest` (including `tests/view/test_window_real_qt.py`), `stir-projdata-viewer --demo`, then a real `.hs`.
+  `pytest` (including `tests/view/test_window_real_qt.py`), `pet-projection-data-visualization --demo`, then a real `.hs`.
 * Assumption to confirm with real STIR: `SegmentByView.as_array()` is ordered (view, axial,
   tangential). The adapter checks the shape and compares against `get_sinogram()` once, and
   fails with an explicit message instead of showing a wrong picture.
@@ -122,7 +122,7 @@ fails if any observable property is left unbound.
 
 Unverified here (no PySide6/pyqtgraph in the sandbox): how the stylesheet actually renders, pyqtgraph
 theming calls, and `tests/view/test_components_real_qt.py` / the updated `test_window_real_qt.py`. The
-first thing to do on a machine with Qt is run `pytest`, then `stir-projdata-viewer --demo` in both themes.
+first thing to do on a machine with Qt is run `pytest`, then `pet-projection-data-visualization --demo` in both themes.
 
 ## 8. Planned: several data sets in one window, synced when they have the same shape
 

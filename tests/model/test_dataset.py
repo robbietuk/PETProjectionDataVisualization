@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from fakes import CountingSource, non_tof_source, small_demo
-from stir_projdata_viewer.model import ProjDataset, Selection, SliceMode, TofMode
+from pet_projection_data_visualization.model import ProjDataset, Selection, SliceMode, TofMode
 
 
 @pytest.fixture
