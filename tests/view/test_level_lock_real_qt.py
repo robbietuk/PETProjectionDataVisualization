@@ -24,17 +24,30 @@ def app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 
-@pytest.fixture
-def win(app):
-    vm = ViewerViewModel(lambda o: o)
-    w = ViewerWindow(vm)
-    vm.load(small_demo())
+@pytest.fixture(scope="module")
+def shown_window(app):
+    """One shown window for the whole module, like one session. (A fresh shown window per test aborted the
+    interpreter on the Linux / Python 3.11 CI runner after about a dozen of them.)"""
+    w = ViewerWindow(ViewerViewModel(lambda o: o))
     w.resize(1200, 800)
     w.show()
     app.processEvents()
     yield w
     w._timer.stop()
     w.close()
+
+
+@pytest.fixture
+def win(shown_window, app):
+    """The shared window with freshly loaded demo data (adaptive levels, linear display, initial slice)."""
+    vm = shown_window.vm
+    vm.set_playing(False)
+    vm.set_log_display(False)
+    assert vm.load(small_demo())
+    assert vm.level_mode is LevelMode.ADAPTIVE and vm.slice_mode is SliceMode.SINOGRAM
+    app.processEvents()
+    yield shown_window
+    vm.set_playing(False)
 
 
 def _button(win, mode):
@@ -176,11 +189,14 @@ def test_L_is_handed_to_a_focused_text_field_or_combo_not_the_shortcut(win, monk
 
 def test_L_forwarded_to_a_text_field_types_the_letter(win):
     win.info_view.setReadOnly(False)
-    win.info_view.setPlainText("")
-    win.info_view.setFocus()
-    QtWidgets.QApplication.processEvents()
-    win._on_shortcut(Key.Key_L)
-    assert win.info_view.toPlainText() == "l" and win.vm.level_mode is LevelMode.ADAPTIVE
+    try:
+        win.info_view.setPlainText("")
+        win.info_view.setFocus()
+        QtWidgets.QApplication.processEvents()
+        win._on_shortcut(Key.Key_L)
+        assert win.info_view.toPlainText() == "l" and win.vm.level_mode is LevelMode.ADAPTIVE
+    finally:
+        win.info_view.setReadOnly(True)                      # the window is shared by the whole module
 
 
 @pytest.mark.skipif(sys.platform.startswith("linux") and sys.version_info[:2] == (3, 11),
