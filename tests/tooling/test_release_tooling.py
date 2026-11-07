@@ -5,7 +5,7 @@ import pathlib
 
 import pytest
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("release_notes", ROOT / "scripts" / "release_notes.py")
 rn = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rn)

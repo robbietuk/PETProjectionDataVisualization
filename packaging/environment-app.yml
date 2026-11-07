@@ -1,0 +1,13 @@
+# Build environment for the frozen app (all platforms). Used by .github/workflows/app.yml
+# (setup-micromamba) and by make_env.py (py-rattler, for local builds without conda).
+name: pet-pdv-app
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - stir>=6.4       # without the pin the solver may choose 6.3
+  - numpy
+  - pyside6
+  - pyqtgraph
+  - pyinstaller
+  - pytest
