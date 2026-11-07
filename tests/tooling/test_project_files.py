@@ -19,3 +19,8 @@ def test_licence_files_exist_and_are_declared():
     assert (ROOT / "NOTICE").is_file()
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert 'license = "Apache-2.0"' in pyproject and '"LICENSE"' in pyproject
+
+
+def test_package_is_marked_as_typed():
+    """PEP 561: ``py.typed`` makes type checkers use the package's own annotations (the wheel ships it)."""
+    assert (ROOT / "src" / "pet_projection_data_visualization" / "py.typed").is_file()

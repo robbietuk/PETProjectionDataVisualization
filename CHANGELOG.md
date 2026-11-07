@@ -40,7 +40,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   and commits after a tag build as `1.2.4.devN+g<hash>`.
 - **Continuous integration** on GitHub Actions, modelled on STIR's own CI and run only on standard
   free runners:
-  - pre-commit, with STIR's generic hooks plus ruff
+  - pre-commit, with STIR's generic hooks plus ruff and a strict Pyrefly type check
   - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.13
   - a real-STIR job with conda-forge `stir` 6.4.0 and STIR's own test data
   - building the wheel and sdist and installing each into a clean environment on all three
@@ -50,6 +50,10 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
 - **Tests.** About 400 tests across the model, sources, STIR interface, view model and view, using
   stubbed and real Qt. They include architecture rules that keep the model and view model free of
   Qt and STIR, and checks that every source file carries the SPDX licence line.
+- **Static typing.** The package, the CI scripts and the app build scripts are fully annotated and pass a strict
+  [Pyrefly](https://pyrefly.org) type check (`preset = "strict"` plus no explicit or inferred `Any`),
+  run as a pre-commit hook. The package ships a `py.typed` marker, so its types are visible to users'
+  type checkers.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
 
 ### Fixed

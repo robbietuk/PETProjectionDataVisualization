@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import sys
-from typing import Any
+from typing import cast
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from .sources import make_demo_source
 from .sources.loader import make_source
+from .view._compat import override
 from .view.styling import apply_theme
 from .view.theme import DEFAULT_PALETTE, PALETTES
 from .view.window import ViewerWindow
@@ -30,18 +31,20 @@ class FileOpenHandler(QtCore.QObject):
     Several documents dropped at once arrive as one event each; only the last one is loaded, from a
     0 ms timer, so the viewer does not read every file in turn."""
 
-    def __init__(self, vm: ViewerViewModel, window: QtWidgets.QWidget, parent: QtCore.QObject | None = None):
+    def __init__(self, vm: ViewerViewModel, window: QtWidgets.QWidget, parent: QtCore.QObject | None = None) -> None:
         super().__init__(parent)
         self._vm, self._window = vm, window
         self._pending: str | None = None
 
+    @override
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:  # noqa: N802 - Qt override
         # An application-wide filter sees every event of every object: get out cheaply unless this is
         # a file-open event for the application itself.
         if obj is not QtCore.QCoreApplication.instance() or event.type() != QtCore.QEvent.Type.FileOpen:
             return False
-        url = event.url()
-        path = event.file() or (url.toLocalFile() if url.isLocalFile() else "")
+        file_event = cast(QtGui.QFileOpenEvent, event)    # what a FileOpen event is
+        url = file_event.url()
+        path = file_event.file() or (url.toLocalFile() if url.isLocalFile() else "")
         if path:
             if self._pending is None:
                 QtCore.QTimer.singleShot(0, self._load_pending)
@@ -72,13 +75,14 @@ def install_file_open_handler(app: QtWidgets.QApplication, vm: ViewerViewModel,
     return handler
 
 
-def launch(projdata: Any = None, stir_path: str | None = None, demo: bool = False,
+def launch(projdata: object = None, stir_path: str | None = None, demo: bool = False,
            theme: str = DEFAULT_PALETTE.name) -> int:
     """Open the viewer. ``projdata`` may be a path, a ``stir.ProjData`` or a ``ProjDataSource``.
 
     Blocks until the window is closed; returns the Qt exit code. A load failure is shown in the window.
     """
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
+    # an existing instance is the GUI application of the caller (e.g. an IPython Qt event loop)
+    app = cast(QtWidgets.QApplication, QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1]))
     if theme not in PALETTES:
         raise ValueError(f"unknown theme {theme!r}; choose from {sorted(PALETTES)}")
     apply_theme(app, PALETTES[theme])

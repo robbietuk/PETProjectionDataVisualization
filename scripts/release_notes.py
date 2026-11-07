@@ -27,7 +27,7 @@ def changelog_section(text: str, version: str) -> str | None:
 
 
 def dist_versions(dist: pathlib.Path) -> dict[str, str]:
-    out = {}
+    out: dict[str, str] = {}
     for f in sorted(dist.iterdir()):
         if f.name.endswith(".whl"):
             out[f.name] = f.name.split("-")[1]

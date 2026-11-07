@@ -20,7 +20,8 @@ ENV_FILE = Path(__file__).with_name("environment-app.yml")
 
 def read_specs(path: Path = ENV_FILE) -> list[str]:
     """The ``dependencies:`` list of a conda environment file (plain specs only, comments dropped)."""
-    specs, in_deps = [], False
+    specs: list[str] = []
+    in_deps = False
     for line in path.read_text().splitlines():
         text = line.split("#", 1)[0].rstrip()
         if not text:

@@ -1,4 +1,4 @@
-# Same generic hooks as STIR's .pre-commit-config.yaml, plus ruff for the Python code.
+# Same generic hooks as STIR's .pre-commit-config.yaml, plus ruff and a strict Pyrefly type check for the Python code.
 # Run locally with:  pip install pre-commit && pre-commit run --all-files
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -15,3 +15,11 @@ repos:
   rev: v0.12.7
   hooks:
   - id: ruff-check
+- repo: https://github.com/facebook/pyrefly-pre-commit
+  rev: 1.4.1  # the Pyrefly version; settings are in pyproject.toml, [tool.pyrefly]
+  hooks:
+  - id: pyrefly-check
+    name: pyrefly (strict type check)
+    # the runtime dependencies whose types are checked against; pyqtgraph comes from the stubs in typings/.
+    # numpy 2.4 (not 2.5) because it still installs on Python 3.11, the oldest version the package supports.
+    additional_dependencies: [numpy==2.4.6, PySide6-Essentials==6.12.0]

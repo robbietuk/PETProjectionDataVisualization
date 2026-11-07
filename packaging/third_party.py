@@ -13,13 +13,33 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import TypedDict
 
 
-def _owners(prefix: Path) -> tuple[dict[str, dict], dict[str, str]]:
-    records, owner = {}, {}
+class _CondaRecord(TypedDict, total=False):
+    """The fields used from a ``conda-meta/<package>.json`` file."""
+    name: str
+    version: str
+    license: str
+    url: str
+    fn: str
+    files: list[str]
+    extracted_package_dir: str
+
+
+class _About(TypedDict, total=False):
+    """The fields used from a package's ``info/about.json``."""
+    license: str
+    home: str
+    dev_url: str
+
+
+def _owners(prefix: Path) -> tuple[dict[str, _CondaRecord], dict[str, str]]:
+    records: dict[str, _CondaRecord] = {}
+    owner: dict[str, str] = {}
     for meta in sorted((prefix / "conda-meta").glob("*.json")):
         try:
-            rec = json.loads(meta.read_text())
+            rec: _CondaRecord = json.loads(meta.read_text())
         except (OSError, ValueError):
             continue
         name = rec.get("name")
@@ -39,7 +59,7 @@ def _relative(path: str, prefixes: list[str]) -> str | None:
     return None
 
 
-def license_datas(prefix: str | os.PathLike, sources: list[str], work_dir: str | os.PathLike,
+def license_datas(prefix: str | os.PathLike[str], sources: list[str], work_dir: str | os.PathLike[str],
                   extra: tuple[str, ...] = ("python",)) -> list[tuple[str, str, str]]:
     """TOC entries ``(dest, src, "DATA")`` with the licences of the conda packages that own ``sources``
     (plus ``extra`` packages, e.g. the interpreter), and a generated THIRD_PARTY.txt."""
@@ -52,16 +72,17 @@ def license_datas(prefix: str | os.PathLike, sources: list[str], work_dir: str |
         if rel is not None and rel in owner:
             used.add(owner[rel])
 
-    toc, lines = [], ["Third-party software in this bundle (from conda-forge)", "=" * 56, ""]
+    toc: list[tuple[str, str, str]] = []
+    lines = ["Third-party software in this bundle (from conda-forge)", "=" * 56, ""]
     for name in sorted(used):
         rec = records[name]
         pkg_dir = Path(rec.get("extracted_package_dir") or "")
-        about = {}
+        about: _About = {}
         try:
             about = json.loads((pkg_dir / "info" / "about.json").read_text())
         except (OSError, ValueError):
             pass
-        files = []
+        files: list[str] = []
         lic_dir = pkg_dir / "info" / "licenses"
         if lic_dir.is_dir():
             for f in sorted(p for p in lic_dir.rglob("*") if p.is_file()):

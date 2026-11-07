@@ -13,7 +13,7 @@ from typing import Callable, Iterable
 from .observable import Observed, ObservableObject
 
 
-def observed_names(obj_or_type) -> tuple[str, ...]:
+def observed_names(obj_or_type: object) -> tuple[str, ...]:
     """Names of every ``Observed`` property of a class (or instance), in definition order."""
     cls = obj_or_type if isinstance(obj_or_type, type) else type(obj_or_type)
     names: list[str] = []
@@ -25,16 +25,16 @@ def observed_names(obj_or_type) -> tuple[str, ...]:
 
 
 class BindingRegistry:
-    def __init__(self, vm: ObservableObject):
+    def __init__(self, vm: ObservableObject) -> None:
         self._vm = vm
-        self._bindings: list[tuple[frozenset, Callable[[], None]]] = []
+        self._bindings: list[tuple[frozenset[str], Callable[[], object]]] = []
         self._unsubscribe: Callable[[], None] | None = None
 
     @property
-    def bound_names(self) -> frozenset:
+    def bound_names(self) -> frozenset[str]:
         return frozenset().union(*(names for names, _ in self._bindings)) if self._bindings else frozenset()
 
-    def bind(self, names: str | Iterable[str], update: Callable[[], None]) -> None:
+    def bind(self, names: str | Iterable[str], update: Callable[[], object]) -> None:
         """``update()`` runs when any of ``names`` changed. It reads current values from the view model."""
         group = frozenset([names] if isinstance(names, str) else names)
         if not group:
@@ -55,11 +55,11 @@ class BindingRegistry:
             self._unsubscribe()
             self._unsubscribe = None
 
-    def dispatch(self, changed: frozenset) -> None:
+    def dispatch(self, changed: frozenset[str]) -> None:
         for names, update in list(self._bindings):
             if names & changed:
                 update()
 
-    def unbound(self) -> frozenset:
+    def unbound(self) -> frozenset[str]:
         """Observable properties nothing is bound to (tests assert this is empty or intentional)."""
         return frozenset(observed_names(self._vm)) - self.bound_names

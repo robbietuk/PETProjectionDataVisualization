@@ -10,12 +10,14 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator
+from typing import Callable, Generator, Generic, Self, TypeVar, cast, overload
 
-Subscriber = Callable[[frozenset], None]
+T = TypeVar("T")
+
+Subscriber = Callable[[frozenset[str]], None]
 
 
-def _same(old: Any, new: Any) -> bool:
+def _same(old: object, new: object) -> bool:
     if old is new:
         return True
     try:
@@ -26,23 +28,28 @@ def _same(old: Any, new: Any) -> bool:
         return False
 
 
-class Observed:
-    """Observable attribute. Read freely; only the owning view model should assign."""
+class Observed(Generic[T]):
+    """Observable attribute holding a ``T``. Read freely; only the owning view model should assign."""
 
-    def __init__(self, default: Any = None):
+    def __init__(self, default: T) -> None:
         self.default = default
         self.name = ""
         self._attr = ""
 
-    def __set_name__(self, owner, name: str) -> None:
+    def __set_name__(self, owner: type[object], name: str) -> None:
         self.name, self._attr = name, f"_observed_{name}"
 
-    def __get__(self, obj, objtype=None):
+    @overload
+    def __get__(self, obj: None, objtype: type[object] | None = None) -> Self: ...
+    @overload
+    def __get__(self, obj: ObservableObject, objtype: type[object] | None = None) -> T: ...
+    def __get__(self, obj: ObservableObject | None, objtype: type[object] | None = None) -> Self | T:
         if obj is None:
             return self
-        return getattr(obj, self._attr, self.default)
+        # only __set__ (with a ``T``) writes this attribute, so the dynamic lookup is a ``T``
+        return cast(T, getattr(obj, self._attr, self.default))
 
-    def __set__(self, obj, value) -> None:
+    def __set__(self, obj: ObservableObject, value: T) -> None:
         old = getattr(obj, self._attr, self.default)
         setattr(obj, self._attr, value)
         if not _same(old, value):
@@ -65,7 +72,7 @@ class ObservableObject:
         return unsubscribe
 
     @contextmanager
-    def transaction(self) -> Iterator[None]:
+    def transaction(self) -> Generator[None, None, None]:
         self._depth += 1
         try:
             yield

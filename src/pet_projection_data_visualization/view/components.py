@@ -10,13 +10,18 @@ Shared behaviour is written once:
 """
 from __future__ import annotations
 
+from typing import Callable, Generic, Hashable, Iterable, TypeVar
+
 from PySide6 import QtCore, QtWidgets
 
 from ..viewmodel.formatting import format_number, parse_number
 from ..viewmodel.options import ChoiceOptions
+from ._compat import override
+
+T = TypeVar("T", bound=Hashable)
 
 
-def silently(widget: QtWidgets.QWidget, fn) -> None:
+def silently(widget: QtWidgets.QWidget, fn: Callable[[], object]) -> None:
     """Run ``fn`` with the widget's signals blocked."""
     was = widget.blockSignals(True)
     try:
@@ -25,24 +30,24 @@ def silently(widget: QtWidgets.QWidget, fn) -> None:
         widget.blockSignals(was)
 
 
-class ChoiceControl(QtWidgets.QWidget):
+class ChoiceControl(QtWidgets.QWidget, Generic[T]):
     """Interface + shared state for choice widgets."""
 
-    choiceChanged = QtCore.Signal(object)
+    choiceChanged = QtCore.Signal(object)           # emits a ``T``
 
-    def __init__(self, options: ChoiceOptions, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, options: ChoiceOptions[T], parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.options = options
 
-    def set_choice(self, value) -> None:           # pragma: no cover - interface
+    def set_choice(self, value: T) -> None:        # pragma: no cover - interface
         raise NotImplementedError
 
-    def choice(self):                               # pragma: no cover - interface
+    def choice(self) -> T | None:                   # pragma: no cover - interface
         raise NotImplementedError
 
 
-class SegmentedControl(ChoiceControl):
-    def __init__(self, options: ChoiceOptions, parent: QtWidgets.QWidget | None = None):
+class SegmentedControl(ChoiceControl[T]):
+    def __init__(self, options: ChoiceOptions[T], parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(options, parent)
         frame = QtWidgets.QFrame(self)
         frame.setObjectName("Segmented")
@@ -63,40 +68,50 @@ class SegmentedControl(ChoiceControl):
             self._group.addButton(b, i)
             row.addWidget(b, 1)
             self._buttons.append(b)
-        self._group.idClicked.connect(lambda i: self.choiceChanged.emit(self.options.value_at(i)))
+        self._group.idClicked.connect(self._on_clicked)
 
-    def set_choice(self, value) -> None:
+    def _on_clicked(self, i: int) -> None:
+        self.choiceChanged.emit(self.options.value_at(i))
+
+    @override
+    def set_choice(self, value: T) -> None:
         self._buttons[self.options.index_of(value)].setChecked(True)
 
-    def choice(self):
+    @override
+    def choice(self) -> T | None:
         i = self._group.checkedId()
         return self.options.value_at(i) if i >= 0 else None
 
-    def set_choice_enabled(self, value, enabled: bool) -> None:
+    def set_choice_enabled(self, value: T, enabled: bool) -> None:
         self._buttons[self.options.index_of(value)].setEnabled(enabled)
 
 
-class ChoiceCombo(ChoiceControl):
-    def __init__(self, options: ChoiceOptions, parent: QtWidgets.QWidget | None = None):
+class ChoiceCombo(ChoiceControl[T]):
+    def __init__(self, options: ChoiceOptions[T], parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(options, parent)
         self._combo = QtWidgets.QComboBox()
         self._combo.addItems(list(options.labels))
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self._combo)
-        self._combo.activated.connect(lambda i: self.choiceChanged.emit(self.options.value_at(i)))
+        self._combo.activated.connect(self._on_activated)
 
-    def set_choice(self, value) -> None:
+    def _on_activated(self, i: int) -> None:
+        self.choiceChanged.emit(self.options.value_at(i))
+
+    @override
+    def set_choice(self, value: T) -> None:
         silently(self._combo, lambda: self._combo.setCurrentIndex(self.options.index_of(value)))
 
-    def choice(self):
+    @override
+    def choice(self) -> T:
         return self.options.value_at(self._combo.currentIndex())
 
 
 class Card(QtWidgets.QFrame):
     """Titled container. Add content with ``card.body.addWidget(...)``."""
 
-    def __init__(self, title: str = "", parent: QtWidgets.QWidget | None = None):
+    def __init__(self, title: str = "", parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Card")
         lay = QtWidgets.QVBoxLayout(self)
@@ -114,7 +129,7 @@ class Card(QtWidgets.QFrame):
 class LabeledRow(QtWidgets.QWidget):
     """Caption on the left, any control on the right (used for display options)."""
 
-    def __init__(self, caption: str, control: QtWidgets.QWidget, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, caption: str, control: QtWidgets.QWidget, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         row = QtWidgets.QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
@@ -127,7 +142,7 @@ class LabeledRow(QtWidgets.QWidget):
 
 
 class Chip(QtWidgets.QFrame):
-    def __init__(self, text: str, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, text: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Chip")
         lay = QtWidgets.QHBoxLayout(self)
@@ -137,7 +152,7 @@ class Chip(QtWidgets.QFrame):
 
 
 class ChipRow(QtWidgets.QWidget):
-    def __init__(self, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._row = QtWidgets.QHBoxLayout(self)
         self._row.setContentsMargins(0, 0, 0, 0)
@@ -148,7 +163,7 @@ class ChipRow(QtWidgets.QWidget):
     def texts(self) -> list[str]:
         return [c.label.text() for c in self._chips if not c.isHidden()]
 
-    def set_chips(self, texts) -> None:
+    def set_chips(self, texts: Iterable[str]) -> None:
         texts = list(texts)
         while len(self._chips) < len(texts):
             chip = Chip("")
@@ -162,7 +177,7 @@ class ChipRow(QtWidgets.QWidget):
 
 
 class MetricTile(QtWidgets.QFrame):
-    def __init__(self, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Tile")
         lay = QtWidgets.QVBoxLayout(self)
@@ -179,7 +194,7 @@ class MetricTile(QtWidgets.QFrame):
 class MetricGrid(QtWidgets.QWidget):
     """Grid of label/value tiles filled from ``((label, value), ...)``."""
 
-    def __init__(self, columns: int = 3, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, columns: int = 3, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._columns = columns
         self._grid = QtWidgets.QGridLayout(self)
@@ -190,7 +205,7 @@ class MetricGrid(QtWidgets.QWidget):
     def pairs(self) -> list[tuple[str, str]]:
         return [(t.name.text(), t.value.text()) for t in self._tiles if not t.isHidden()]
 
-    def set_metrics(self, pairs) -> None:
+    def set_metrics(self, pairs: Iterable[tuple[str, str]]) -> None:
         pairs = list(pairs)
         while len(self._tiles) < len(pairs):
             tile = MetricTile()
@@ -210,7 +225,7 @@ class Banner(QtWidgets.QFrame):
 
     dismissed = QtCore.Signal()
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Banner")
         row = QtWidgets.QHBoxLayout(self)
@@ -233,7 +248,7 @@ class Banner(QtWidgets.QFrame):
 class EmptyState(QtWidgets.QWidget):
     """Shown before any data is loaded."""
 
-    def __init__(self, title: str, hint: str, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, title: str, hint: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("EmptyState")
         lay = QtWidgets.QVBoxLayout(self)
@@ -251,7 +266,7 @@ class EmptyState(QtWidgets.QWidget):
         self.action_row.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         lay.addLayout(self.action_row)
 
-    def add_action(self, text: str, slot, primary: bool = False) -> QtWidgets.QPushButton:
+    def add_action(self, text: str, slot: Callable[[], object], primary: bool = False) -> QtWidgets.QPushButton:
         b = QtWidgets.QPushButton(text)
         if primary:
             b.setProperty("variant", "primary")
@@ -268,7 +283,7 @@ class DimensionControl(QtWidgets.QWidget):
 
     userChanged = QtCore.Signal(int)
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._label = QtWidgets.QLabel("")
         self._range = QtWidgets.QLabel("")
@@ -316,7 +331,7 @@ class NumberEdit(QtWidgets.QLineEdit):
 
     valueEdited = QtCore.Signal(float)
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._shown = ""
         self.editingFinished.connect(self._commit)

@@ -5,10 +5,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+from typing import Final, cast
 
 from .info import ProjDataInfo
 
-DIMENSIONS = ("segment", "axial", "view", "tangential", "tof")
+DIMENSIONS: Final = ("segment", "axial", "view", "tangential", "tof")
 
 
 class SliceMode(Enum):
@@ -58,7 +59,7 @@ class Selection:
     def get(self, dim: str) -> int:
         if dim not in DIMENSIONS:
             raise KeyError(dim)
-        return getattr(self, dim)
+        return cast(int, getattr(self, dim))     # every name in DIMENSIONS is an ``int`` field
 
     @property
     def active_dimension(self) -> str:

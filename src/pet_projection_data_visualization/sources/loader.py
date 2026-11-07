@@ -5,18 +5,23 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TypeGuard
 
 from ..model.info import ProjDataSource
 from .array_source import ArraySource
 
 
-def make_source(obj: Any, stir_path: str | None = None) -> ProjDataSource:
+def _is_source(obj: object) -> TypeGuard[ProjDataSource]:
+    """Duck-typed on purpose (not ``isinstance(obj, ProjDataSource)``, which skips dynamic attributes)."""
+    return hasattr(obj, "info") and hasattr(obj, "get_segment")
+
+
+def make_source(obj: object, stir_path: str | None = None) -> ProjDataSource:
     """``obj`` may be a path (``.npy``/``.npz``, or a STIR file such as ``.hs``), an existing
     ``ProjDataSource``, or a ``stir.ProjData`` object."""
     if isinstance(obj, (str, os.PathLike)) and Path(obj).suffix.lower() in (".npy", ".npz"):
         return ArraySource.from_file(obj)
-    if not isinstance(obj, (str, os.PathLike)) and hasattr(obj, "info") and hasattr(obj, "get_segment"):
+    if not isinstance(obj, (str, os.PathLike)) and _is_source(obj):
         return obj
     if isinstance(obj, (str, os.PathLike)) and not Path(obj).exists():
         # checked here so a typo is reported as such, not as a missing STIR installation

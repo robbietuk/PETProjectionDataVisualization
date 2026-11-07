@@ -18,7 +18,7 @@ import sys
 
 
 def _setup_bundle() -> None:
-    base = getattr(sys, "_MEIPASS", None)
+    base: str | None = getattr(sys, "_MEIPASS", None)    # set by PyInstaller in the frozen app
     if base is None:  # not frozen: running from a checkout
         return
     # STIR reads radionuclide/CT tables from a config dir compiled into the library. That path points
@@ -51,8 +51,9 @@ def _self_test(argv: list[str]) -> int:
     if log is not None:
         sys.stdout = sys.stderr = log
     try:
-        smoke = runpy.run_path(os.path.join(sys._MEIPASS, "ci_smoke.py"), run_name="ci_smoke")
-        rc = smoke["main"](argv)
+        bundle: str = getattr(sys, "_MEIPASS")     # not in the sys stub: PyInstaller adds it
+        smoke = runpy.run_path(os.path.join(bundle, "ci_smoke.py"), run_name="ci_smoke")
+        rc: int = smoke["main"](argv)
         import stir
 
         print(f"stir imported from {stir.__file__}")

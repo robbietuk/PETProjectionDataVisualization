@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from .array_source import ArraySource
 
@@ -28,7 +29,7 @@ def make_demo_source(num_segments: int = 5, num_views: int = 48, num_tangential:
     spots = [(-12.0, 4.0, 0.35, 100.0), (8.0, -10.0, 0.60, 70.0), (14.0, 12.0, 0.45, 40.0)]
     sigma_tang, sigma_tof, sigma_z = 1.6, 3.5, 3.0
 
-    segments: dict[int, np.ndarray] = {}
+    segments: dict[int, npt.NDArray[np.float32]] = {}
     for seg in range(-half, half + 1):
         n_ax = max(axial_base - 4 * abs(seg), 4)
         z = np.arange(n_ax)

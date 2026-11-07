@@ -15,13 +15,22 @@ import importlib
 import os
 import sys
 import warnings
-from typing import Any, Callable
+from types import ModuleType
+from typing import Any, Callable, Final, TypeAlias, TypeVar
 
 import numpy as np
+import numpy.typing as npt
 
 from .gateway import ProjDataLayout, StirNotFoundError
 
-ENV_VAR = "STIR_PYTHON_PATH"
+ENV_VAR: Final = "STIR_PYTHON_PATH"
+
+# The SWIG-generated ``stir`` module ships no type information, so the module and every object it returns
+# (ProjData, segments, sinograms, ...) are dynamic. This alias is the one place in the package where ``Any``
+# is allowed; everything this file hands to other layers is converted to plain Python / numpy types first.
+StirObject: TypeAlias = Any  # pyrefly: ignore[explicit-any]
+
+_T = TypeVar("_T")
 
 
 def _add_windows_dll_dirs(python_dir: str) -> None:
@@ -37,12 +46,12 @@ def _add_windows_dll_dirs(python_dir: str) -> None:
             add(d)
 
 
-def _module_dir(module: Any) -> str | None:
+def _module_dir(module: ModuleType) -> str | None:
     f = getattr(module, "__file__", None)
     return os.path.dirname(os.path.dirname(os.path.abspath(f))) if f else None
 
 
-def import_stir(extra_path: str | None = None):
+def import_stir(extra_path: str | None = None) -> ModuleType:
     """Import and return the ``stir`` module.
 
     * ``extra_path`` (``--stir-path``) is an explicit request: it must exist, and is searched first.
@@ -86,7 +95,7 @@ def import_stir(extra_path: str | None = None):
         ) from exc
 
 
-def _try(fn: Callable[[], Any]) -> Any:
+def _try(fn: Callable[[], _T]) -> _T | None:
     """Best-effort call for optional metadata; STIR API details vary between versions."""
     try:
         return fn()
@@ -97,7 +106,7 @@ def _try(fn: Callable[[], Any]) -> Any:
 class SwigProjData:
     """Handle for one ``stir.ProjData``."""
 
-    def __init__(self, stir_module: Any, projdata: Any, name: str):
+    def __init__(self, stir_module: StirObject, projdata: StirObject, name: str) -> None:
         self._stir = stir_module
         self._pd = projdata
         self.name = name
@@ -136,7 +145,7 @@ class SwigProjData:
             extra["TOF mashing factor"] = str(mash)
         return extra
 
-    def _segment_by_view(self, segment: int, tof_bin: int):
+    def _segment_by_view(self, segment: int, tof_bin: int) -> StirObject:
         # The (segment, timing_pos) overload is declared on ProjData *and* overridden by every subclass
         # (ProjDataInMemory, ProjDataFromStream, ...). The SegmentIndices overload is an inline on ProjData
         # only, which C++ name hiding (and so SWIG) does not carry over to the subclasses; it is the fallback.
@@ -145,7 +154,7 @@ class SwigProjData:
         except TypeError:
             return self._pd.get_segment_by_view(self._stir.SegmentIndices(segment, tof_bin))
 
-    def read_sinogram(self, segment: int, axial: int, tof_bin: int) -> np.ndarray:
+    def read_sinogram(self, segment: int, axial: int, tof_bin: int) -> npt.NDArray[np.float32]:
         """One sinogram (views, tangential), via ``ProjData.get_sinogram(ax_pos, segment, False, timing_pos)``."""
         sino = self._pd.get_sinogram(axial, segment, False, tof_bin)
         arr = np.asarray(sino.as_array(), dtype=np.float32)
@@ -156,7 +165,7 @@ class SwigProjData:
                                f"expected {expected} (views, tangential)")
         return arr
 
-    def read_segment(self, segment: int, tof_bin: int) -> np.ndarray:
+    def read_segment(self, segment: int, tof_bin: int) -> npt.NDArray[np.float32]:
         seg = self._segment_by_view(segment, tof_bin)
         arr = np.asarray(seg.as_array(), dtype=np.float32)
         lay = self._layout
@@ -171,7 +180,7 @@ class SwigProjData:
             self._check_axis_order(seg, arr, a_lo)
         return arr
 
-    def _check_axis_order(self, seg, arr: np.ndarray, first_axial: int) -> None:
+    def _check_axis_order(self, seg: StirObject, arr: npt.NDArray[np.float32], first_axial: int) -> None:
         """Compare against STIR's own sinogram accessor once, to catch axis-order surprises
         that the shape check cannot see (e.g. when views == axial positions)."""
         ref = _try(lambda: np.asarray(seg.get_sinogram(first_axial).as_array(), dtype=np.float32))
@@ -185,7 +194,7 @@ class SwigProjData:
 class SwigStirGateway:
     """``StirGateway`` backed by the real ``stir`` module (or a stand-in passed as ``stir_module``)."""
 
-    def __init__(self, stir_module: Any = None, stir_path: str | None = None):
+    def __init__(self, stir_module: StirObject = None, stir_path: str | None = None) -> None:
         self._stir = stir_module if stir_module is not None else import_stir(stir_path)
 
     def open(self, filename: str) -> SwigProjData:
@@ -196,5 +205,5 @@ class SwigStirGateway:
             raise OSError(f"STIR could not read '{name}': {exc}") from exc
         return SwigProjData(self._stir, pd, name)
 
-    def wrap(self, projdata: Any) -> SwigProjData:
+    def wrap(self, projdata: StirObject) -> SwigProjData:
         return SwigProjData(self._stir, projdata, "ProjData object")

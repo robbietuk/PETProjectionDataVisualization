@@ -14,6 +14,35 @@ QT_QPA_PLATFORM=offscreen pytest                    # the same command CI runs
 The real-STIR tests run only where `import stir` works. Use a conda environment with conda-forge
 `stir` and point the tests at a file with `STIR_TEST_PROJDATA=/path/to/file.hs`.
 
+## Type checking
+
+`src/`, `scripts/` and `packaging/` are type-checked with [Pyrefly](https://pyrefly.org) in strict mode, as a
+pre-commit hook (so also in CI). The settings are in `pyproject.toml` under `[tool.pyrefly]`:
+
+```sh
+pre-commit run pyrefly-check --all-files            # the same check CI runs (pinned Pyrefly and dependencies)
+pip install pyrefly==1.4.1 && pyrefly check         # or directly, against the active environment
+```
+
+The hook checks against numpy 2.4 (the newest numpy that installs on Python 3.11); a direct run uses the
+numpy of the active environment, whose stubs can differ slightly. CI runs the hook.
+
+What strict means here:
+
+- Every function and method annotates all parameters and its return type; generic classes get their type
+  arguments (`frozenset[str]`, `npt.NDArray[np.float32]`, `ChoiceOptions[SliceMode]`), and overriding methods
+  carry `@override` (from `view/_compat.py`, since `typing.override` needs Python 3.12).
+- No `Any`, written or inferred. The one exception is the `StirObject` alias in
+  `stir_interface/swig_gateway.py`: the SWIG `stir` module has no type information, and that file converts
+  everything it returns to plain Python and numpy types.
+- pyqtgraph has no type information either. `typings/pyqtgraph/` holds stubs for the part of its API the
+  view uses; extend them when the view starts using more of pyqtgraph.
+- A suppression is narrow and says why: `# pyrefly: ignore[<error-kind>]  # <reason>`. Unused suppressions
+  are errors.
+
+The tests are not type-checked: they read optional view-model state and monkeypatch fakes on purpose,
+which would need an `assert` or a suppression on most lines.
+
 ## Pull requests
 
 All changes go to `main` through pull requests. Nothing is pushed to `main` directly.

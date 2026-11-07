@@ -7,6 +7,7 @@ Holds no UI state; the same dataset can answer any number of different selection
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from .cache import LRUCache
 from .info import ProjDataInfo, ProjDataSource
@@ -18,19 +19,19 @@ DEFAULT_CACHE_BYTES = 1 << 30          # 1 GiB for raw segments, the same again 
 
 
 class ProjDataset:
-    def __init__(self, source: ProjDataSource, cache_segments: int = 8, cache_bytes: int | None = DEFAULT_CACHE_BYTES):
+    def __init__(self, source: ProjDataSource, cache_segments: int = 8, cache_bytes: int | None = DEFAULT_CACHE_BYTES) -> None:
         self.source = source
         self.info: ProjDataInfo = source.info
         # (segment, tof_bin) -> array. Room for all bins of one segment (so TOF playback does not reload)
         # unless that exceeds ``cache_bytes``; then the least recently used bins are dropped and re-read.
-        self._raw: LRUCache[np.ndarray] = LRUCache(max(cache_segments, self.info.num_tof_bins + 1), cache_bytes)
-        self._reduced: LRUCache[np.ndarray] = LRUCache(cache_segments, cache_bytes)
+        self._raw: LRUCache[npt.NDArray[np.float32]] = LRUCache(max(cache_segments, self.info.num_tof_bins + 1), cache_bytes)
+        self._reduced: LRUCache[npt.NDArray[np.float32]] = LRUCache(cache_segments, cache_bytes)
         # (segment, axial, tof_bin) -> sinogram (views, tangential), for cheap per-LOR TOF profiles
-        self._sinograms: LRUCache[np.ndarray] = LRUCache(max(64, 4 * self.info.num_tof_bins))
-        self._global: dict[tuple, tuple[float, float]] = {}
+        self._sinograms: LRUCache[npt.NDArray[np.float32]] = LRUCache(max(64, 4 * self.info.num_tof_bins))
+        self._global: dict[TofMode, tuple[float, float]] = {}
 
     # ---- raw and reduced segments ---------------------------------------------
-    def _raw_segment(self, segment: int, tof_bin: int) -> np.ndarray:
+    def _raw_segment(self, segment: int, tof_bin: int) -> npt.NDArray[np.float32]:
         key = (segment, tof_bin)
         arr = self._raw.get(key)
         if arr is None:
@@ -41,7 +42,7 @@ class ProjDataset:
             self._raw.put(key, arr)
         return arr
 
-    def segment_array(self, segment: int, tof_mode: TofMode = TofMode.BIN, tof_bin: int | None = None) -> np.ndarray:
+    def segment_array(self, segment: int, tof_mode: TofMode = TofMode.BIN, tof_bin: int | None = None) -> npt.NDArray[np.float32]:
         """One segment, shape (views, axial, tangential), after TOF selection or reduction."""
         if tof_mode is TofMode.BIN:
             return self._raw_segment(segment, self.info.min_tof if tof_bin is None else tof_bin)
@@ -114,7 +115,7 @@ class ProjDataset:
             self._global[key] = (lo, hi) if lo <= hi else (0.0, 1.0)
         return self._global[key]
 
-    def _sinogram(self, segment: int, axial: int, tof_bin: int) -> np.ndarray:
+    def _sinogram(self, segment: int, axial: int, tof_bin: int) -> npt.NDArray[np.float32]:
         """One sinogram (views, tangential). Served from a cached segment if there is one, else read on its
         own when the source can (``get_sinogram``), which is much cheaper than a whole segment."""
         a_lo, _ = self.info.axial_range(segment)
@@ -135,7 +136,7 @@ class ProjDataset:
             self._sinograms.put(key, sino)
         return sino
 
-    def tof_profile(self, segment: int, view: int, axial: int, tangential: int) -> np.ndarray:
+    def tof_profile(self, segment: int, view: int, axial: int, tangential: int) -> npt.NDArray[np.float64]:
         """Counts versus TOF bin for one LOR; length = number of TOF bins."""
         i = self.info
         if segment not in i.axial_ranges:

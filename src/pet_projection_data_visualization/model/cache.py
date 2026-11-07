@@ -8,7 +8,7 @@ from typing import Generic, Hashable, TypeVar
 V = TypeVar("V")
 
 
-def _nbytes(value) -> int:
+def _nbytes(value: object) -> int:
     return int(getattr(value, "nbytes", 0))
 
 
@@ -19,7 +19,7 @@ class LRUCache(Generic[V]):
     even if it alone exceeds the budget, so a single large segment can still be displayed.
     """
 
-    def __init__(self, maxsize: int, max_bytes: int | None = None):
+    def __init__(self, maxsize: int, max_bytes: int | None = None) -> None:
         if maxsize < 1:
             raise ValueError("maxsize must be >= 1")
         if max_bytes is not None and max_bytes < 0:
