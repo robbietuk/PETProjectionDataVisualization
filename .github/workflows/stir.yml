@@ -1,0 +1,120 @@
+# Real-STIR job. Modelled on STIR's conda jobs in build-test.yml (setup-micromamba with caching,
+# login shell so the environment is active) and on how STIR runs its Python tests:
+# pytest with real projection data, then an example run.
+# conda-forge's `stir` 6.4.0 is built for linux-64, linux-aarch64, osx-64, osx-arm64 and win-64, Python 3.11 to 3.14.
+name: real STIR
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    # pull requests into any branch (stacked PRs included): every PR is tested once, before merging
+  workflow_dispatch:
+  # build.yml calls this before publishing a release
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # STIR release the test data is taken from (raw files from github.com/UCL/STIR)
+  STIR_DATA_TAG: rel_6.4.0
+
+jobs:
+  stir:
+    defaults:
+      run:
+        # activate the conda environment in every step, as STIR's CI does
+        shell: bash -leo pipefail {0}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+        python-version: ["3.12"]
+      fail-fast: false
+    name: stir-${{ matrix.os }}-py${{ matrix.python-version }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup conda environment
+      uses: mamba-org/setup-micromamba@v2
+      with:
+        environment-name: stir-viewer
+        create-args: >-
+          python=${{ matrix.python-version }}
+          stir>=6.4
+          numpy
+          pyside6
+          pyqtgraph>=0.13.7
+          pytest
+          pip
+        cache-environment: true
+        cache-downloads: true
+
+    - name: Qt system libraries (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+
+    - name: Install the viewer without dependencies (conda provides them)
+      run: |
+        python -m pip install --no-deps -e .
+        python -c "import stir, stir_projdata_viewer; print('stir from', stir.__file__)"
+
+    - name: Find STIR's config files
+      # conda-forge stir's activation script sets STIR_CONFIG_DIR, but on win-64 to <prefix>/share/...
+      # while the files are in <prefix>/Library/share/...; and it runs again at the start of every step
+      # (login shell), so a value put in GITHUB_ENV is overwritten. Record the real folder here and
+      # re-export it in each step that uses STIR (scripts/ci_stir_env.sh).
+      run: |
+        python -c "import glob,os,sys; c=sorted(glob.glob(os.path.join(sys.prefix,'Library','share','STIR-*','config'))+glob.glob(os.path.join(sys.prefix,'share','STIR-*','config'))); print(c[-1] if c else '')" > .stir_config_dir
+        echo "::notice title=STIR::$(micromamba list stir --json | python -c 'import json,sys; print([p["version"] for p in json.load(sys.stdin) if p["name"]=="stir"])') config in $(cat .stir_config_dir); activation set ${STIR_CONFIG_DIR:-nothing}"
+
+    - name: Fetch STIR test data
+      run: |
+        mkdir -p stir_data
+        base=https://raw.githubusercontent.com/UCL/STIR/${STIR_DATA_TAG}
+        for f in examples/recon_demo/smalllong.hs examples/recon_demo/smalllong.s \
+                 recon_test_pack/Utahscat600k_ca_seg4.hs recon_test_pack/Utahscat600k_ca_seg4.s; do
+          curl -fsSL --retry 3 -o "stir_data/$(basename "$f")" "$base/$f"
+        done
+        ls -l stir_data
+
+    - name: pytest with real STIR
+      run: |
+        source scripts/ci_stir_env.sh
+        for hs in stir_data/smalllong.hs stir_data/Utahscat600k_ca_seg4.hs; do
+          echo "::group::pytest on $hs"
+          # -rs lists skips; the real-STIR tests must not be among them
+          STIR_TEST_PROJDATA="$hs" python -m pytest -ra --junitxml="pytest-$(basename "$hs" .hs).xml" 2>&1 | tee -a pytest.log
+          echo "::endgroup::"
+        done
+        STIR_TEST_PROJDATA=stir_data/smalllong.hs python -m pytest -q tests/stir_interface/test_real_stir_integration.py -rs \
+          | tee real_stir.log
+        if grep -q "SKIPPED" real_stir.log; then echo "real-STIR tests were skipped"; exit 1; fi
+
+    - name: Report pytest failures as annotations
+      if: failure()
+      run: python scripts/ci_annotate.py pytest.log
+
+    - name: Smoke run of the real window on STIR data
+      run: |
+        source scripts/ci_stir_env.sh
+        python scripts/ci_smoke.py stir_data/smalllong.hs --out ci_smoke.png
+
+    - name: Upload test results for debugging
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: stir-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: |
+          pytest-*.xml
+          real_stir.log
+          pytest.log
+          ci_smoke.png
+        retention-days: 7
