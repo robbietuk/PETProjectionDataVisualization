@@ -1,30 +1,21 @@
 # Real-STIR job. Modelled on STIR's conda jobs in build-test.yml (setup-micromamba with caching,
 # login shell so the environment is active) and on how STIR runs its Python tests:
 # pytest with real projection data, then an example run.
-# conda-forge's `stir` 6.4.0 is built for linux-64, osx-64, osx-arm64 and win-64, Python 3.11 to 3.14.
+# conda-forge's `stir` 6.4.0 is built for linux-64, linux-aarch64, osx-64, osx-arm64 and win-64, Python 3.11 to 3.14.
 name: real STIR
 
 on:
   push:
-    # every branch, so pushed work branches are tested before they are merged
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.html'
-      - '**/*.htm'
-      - '**/*.tex'
-      - 'CITATION.cff'
-      - 'docs/**'
-  pull_request:
     branches:
       - main
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.html'
-      - '**/*.htm'
-      - '**/*.tex'
-      - 'CITATION.cff'
-      - 'docs/**'
+  pull_request:
+    # pull requests into any branch (stacked PRs included): every PR is tested once, before merging
   workflow_dispatch:
+  # build.yml calls this before publishing a release
+  workflow_call:
+
+permissions:
+  contents: read
 
 env:
   # STIR release the test data is taken from (raw files from github.com/UCL/STIR)
@@ -55,7 +46,7 @@ jobs:
         environment-name: stir-viewer
         create-args: >-
           python=${{ matrix.python-version }}
-          stir
+          stir>=6.4
           numpy
           pyside6
           pyqtgraph>=0.13.7
