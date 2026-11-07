@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """The level lock in the real window (PySide6 + pyqtgraph, offscreen). Skipped where Qt is not installed."""
 import os
+import sys
 
 import pytest
 
@@ -18,28 +19,6 @@ from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewMod
 Key = QtCore.Qt.Key
 
 
-_CAPMAN = []
-
-
-def _trace(msg):  # TEMPORARY CI diagnostic: bypasses capture and buffering
-    import sys
-    with _CAPMAN[0].global_and_fixture_disabled():
-        sys.stdout.write(f"\n[lock-trace] {msg}\n")
-        sys.stdout.flush()
-
-
-@pytest.fixture(autouse=True)
-def _trace_tests(request):
-    _CAPMAN[:] = [request.config.pluginmanager.getplugin("capturemanager")]
-    _trace(f"start {request.node.name}")
-    import gc
-    _trace(f"gc {gc.get_count()}")
-    gc.collect()
-    _trace("gc done")
-    yield
-    _trace(f"end {request.node.name}")
-
-
 @pytest.fixture(scope="module")
 def app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
@@ -54,10 +33,8 @@ def win(app):
     w.show()
     app.processEvents()
     yield w
-    _trace("teardown")
     w._timer.stop()
     w.close()
-    _trace("closed")
 
 
 def _button(win, mode):
@@ -65,10 +42,8 @@ def _button(win, mode):
 
 
 def _press(widget, key):
-    _trace(f"press {type(widget).__name__} {key}")
     QtTest.QTest.keyClick(widget, key)
     QtWidgets.QApplication.processEvents()
-    _trace("pressed")
 
 
 def _colour_bar(win):
@@ -180,26 +155,38 @@ def test_L_toggles_the_lock(win):
     assert win.vm.level_mode is LevelMode.ADAPTIVE
 
 
-def test_L_goes_to_a_focused_text_field_not_the_shortcut(win):
-    orig = win._on_shortcut
+@pytest.mark.parametrize("widget", ["path_edit", "level_low", "info_view", "colour_map"])
+def test_L_is_handed_to_a_focused_text_field_or_combo_not_the_shortcut(win, monkeypatch, widget):
+    """Drives the shortcut handler directly and records what it forwards. (Typing real key presses into a
+    QLineEdit aborted the interpreter on the Linux / Python 3.11 CI runner, with Space too, so the
+    end-to-end typing check below is skipped there.)"""
+    target = {"path_edit": win.path_edit, "level_low": win.level_edits["low"], "info_view": win.info_view,
+              "colour_map": win.cmap_control._combo}[widget]
+    target.setFocus()
+    QtWidgets.QApplication.processEvents()
+    sent = []
+    monkeypatch.setattr(QtWidgets.QApplication, "sendEvent",
+                        staticmethod(lambda obj, ev: sent.append((obj, ev.type(), ev.text()))))
+    win._on_shortcut(Key.Key_L)
+    assert win.vm.level_mode is LevelMode.ADAPTIVE
+    assert [(o, t) for o, t, _ in sent] == [(target, QtCore.QEvent.Type.KeyPress),
+                                            (target, QtCore.QEvent.Type.KeyRelease)]
+    assert {text for *_, text in sent} == {"l"}             # the letter is forwarded, so it is still typed
 
-    def traced(k):
-        _trace(f"shortcut {k} focus={type(win.focusWidget()).__name__}")
-        orig(k)
-        _trace("shortcut done")
-    win._on_shortcut = traced
+
+def test_L_forwarded_to_a_text_field_types_the_letter(win):
+    win.info_view.setReadOnly(False)
+    win.info_view.setPlainText("")
+    win.info_view.setFocus()
+    QtWidgets.QApplication.processEvents()
+    win._on_shortcut(Key.Key_L)
+    assert win.info_view.toPlainText() == "l" and win.vm.level_mode is LevelMode.ADAPTIVE
+
+
+@pytest.mark.skipif(sys.platform.startswith("linux") and sys.version_info[:2] == (3, 11),
+                    reason="typing into a QLineEdit with QTest aborts PySide6 on the Linux / Python 3.11 runner")
+def test_typing_L_into_the_path_box_types_it(win):
     win.path_edit.setFocus()
-    win.path_edit.setText("/data/fi")
-    _press(win.path_edit, Key.Key_Space)
-    _press(win.path_edit, Key.Key_A)
-    _trace(f"text {win.path_edit.text()!r}")
     win.path_edit.setText("/data/fi")
     _press(win.path_edit, Key.Key_L)
     assert win.path_edit.text() == "/data/fil" and win.vm.level_mode is LevelMode.ADAPTIVE
-    edit = win.level_edits["low"]
-    edit.setFocus()
-    _press(edit, Key.Key_L)
-    assert win.vm.level_mode is LevelMode.ADAPTIVE
-    win.info_view.setFocus()                                 # read-only text: still its key (selection, search)
-    _press(win.info_view, Key.Key_L)
-    assert win.vm.level_mode is LevelMode.ADAPTIVE

@@ -298,10 +298,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
         if focus is not None and _uses_key(focus, key):
             sc = self._shortcuts[key]
             sc.setEnabled(False)          # or the re-sent key would trigger this shortcut again
+            code = int(getattr(key, "value", key))
+            text = chr(code).lower() if 0x20 <= code < 0x7F else ""    # Space, letters: what the key types
             try:
                 for kind in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
                     QtWidgets.QApplication.sendEvent(
-                        focus, QtGui.QKeyEvent(kind, key, QtCore.Qt.KeyboardModifier.NoModifier))
+                        focus, QtGui.QKeyEvent(kind, key, QtCore.Qt.KeyboardModifier.NoModifier, text))
             finally:
                 sc.setEnabled(True)
             return
