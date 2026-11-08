@@ -424,25 +424,51 @@ class SidePanel(QtWidgets.QScrollArea):
     """Vertically scrolling side panel whose width moves between the content's minimum and ``max_width``.
 
     It never scrolls horizontally, so it reports the content's minimum width (plus the vertical scroll bar)
-    as its own minimum: a layout cannot squeeze it until controls are cut off."""
+    as its own minimum: a layout cannot squeeze it until controls are cut off. If the content needs more
+    than ``max_width`` (large fonts), the maximum grows to fit it, and shrinks back when the content does."""
 
     def __init__(self, content: QtWidgets.QWidget, max_width: int, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+        self._max_width = max_width
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Preferred)
         self.setMaximumWidth(max_width)
-        self.setWidget(content)
+        self.setWidget(content)          # QScrollArea installs its event filter on the content
 
     def _chrome(self) -> int:
         return 2 * self.frameWidth() + self.verticalScrollBar().sizeHint().width()
 
+    def _needed_width(self) -> int:
+        content = self.widget()
+        return (content.minimumSizeHint().width() if content is not None else 0) + self._chrome()
+
+    def _fit_maximum(self) -> None:
+        width = max(self._max_width, self._needed_width())
+        if width != self.maximumWidth():
+            self.setMaximumWidth(width)
+
+    @override
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:  # noqa: N802 - Qt override
+        if watched is self.widget() and event.type() == QtCore.QEvent.Type.LayoutRequest:
+            self._fit_maximum()          # the content's minimum may have changed (fonts, style, texts)
+        return super().eventFilter(watched, event)
+
+    @override
+    def showEvent(self, event: QtGui.QShowEvent) -> None:  # noqa: N802 - Qt override
+        self._fit_maximum()              # the content is polished by now, so its minimum is final
+        super().showEvent(event)
+
+    @override
+    def changeEvent(self, event: QtCore.QEvent) -> None:  # noqa: N802 - Qt override
+        super().changeEvent(event)
+        if event.type() in (QtCore.QEvent.Type.StyleChange, QtCore.QEvent.Type.FontChange):
+            self._fit_maximum()          # the frame and the scroll bar may have changed size
+
     @override
     def minimumSizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
-        content = self.widget()
-        width = content.minimumSizeHint().width() if content is not None else 0
-        return QtCore.QSize(min(width + self._chrome(), self.maximumWidth()), super().minimumSizeHint().height())
+        return QtCore.QSize(self._needed_width(), super().minimumSizeHint().height())
 
     @override
     def sizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override

@@ -200,7 +200,8 @@ def test_side_panel_narrows_to_its_content_but_never_cuts_it_off(app):
     apply_theme(app, DARK)
     content = QtWidgets.QWidget()
     col = QtWidgets.QVBoxLayout(content)
-    wide = QtWidgets.QPushButton("a button with a fairly long caption")
+    wide = QtWidgets.QWidget()
+    wide.setMinimumWidth(250)                            # explicit, so the test does not depend on the font
     col.addWidget(wide)
     panel = ui.SidePanel(content, max_width=500)
     assert panel.horizontalScrollBarPolicy() == QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -215,4 +216,34 @@ def test_side_panel_narrows_to_its_content_but_never_cuts_it_off(app):
     _settle(app, holder)
     assert panel.width() >= panel.minimumSizeHint().width()
     assert panel.viewport().width() >= content.minimumSizeHint().width()
+    assert panel.width() < 500                           # it narrowed
+    holder.close()
+
+
+def test_side_panel_widens_past_its_maximum_rather_than_cut_off_wider_content(app):
+    """With large fonts the content can need more than ``max_width``: the panel grows instead of clipping."""
+    apply_theme(app, DARK)
+    content = QtWidgets.QWidget()
+    col = QtWidgets.QVBoxLayout(content)
+    wide = QtWidgets.QWidget()
+    wide.setMinimumWidth(600)
+    col.addWidget(wide)
+    panel = ui.SidePanel(content, max_width=500)
+    holder = QtWidgets.QWidget()
+    row = QtWidgets.QHBoxLayout(holder)
+    row.addWidget(panel)
+    row.addWidget(QtWidgets.QWidget(), 1)
+    holder.resize(300, 200)
+    _settle(app, holder)
+    assert panel.minimumSizeHint().width() > 600
+    assert panel.maximumWidth() >= panel.minimumSizeHint().width()
+    assert panel.viewport().width() >= content.minimumSizeHint().width()       # nothing cut off on the right
+    wide.setMinimumWidth(200)                            # content narrows again (e.g. a smaller font)
+    for _ in range(3):
+        app.processEvents()
+    assert panel.maximumWidth() == 500                   # back to the configured maximum
+    holder.resize(1200, 200)
+    for _ in range(3):
+        app.processEvents()
+    assert panel.width() == 500
     holder.close()

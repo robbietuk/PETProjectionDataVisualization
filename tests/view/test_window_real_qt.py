@@ -265,12 +265,14 @@ def test_side_panel_is_wide_in_a_wide_window_and_narrows_in_a_narrow_one(win, ap
     win.show()
     win.resize(1320, 840)
     _settle(app)
-    assert win.sidebar.width() == SIDEBAR_WIDTH
+    assert win.sidebar.width() == win.sidebar.maximumWidth() >= SIDEBAR_WIDTH  # SIDEBAR_WIDTH unless fonts are wide
     win.resize(760, 600)
     _settle(app)
     side, content = win.sidebar, win.sidebar.widget()
-    assert side.minimumWidth() < side.maximumWidth() == SIDEBAR_WIDTH        # a range, not a fixed width
-    assert side.width() < SIDEBAR_WIDTH
+    assert side.minimumWidth() == 0                                          # a range, not a fixed width
+    # it narrows to its content's minimum; how far depends on the platform's fonts, so compare with the hint
+    assert side.width() == side.minimumSizeHint().width()
+    assert side.maximumWidth() == max(SIDEBAR_WIDTH, side.minimumSizeHint().width())
     assert side.horizontalScrollBarPolicy() == QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     assert side.viewport().width() >= content.minimumSizeHint().width()       # nothing cut off on the right
     assert content.height() > side.viewport().height()                       # it scrolls vertically instead
@@ -287,3 +289,22 @@ def test_narrow_window_does_not_cut_off_the_plot_or_the_header(win, app):
     assert win.glw.width() >= scene_min                                       # histogram fully visible
     assert win.chips.width() >= win.chips.sizeHint().width()                  # chips are not squeezed
     assert win.title_label.text() == win.vm.source_label                      # elided on screen, full text kept
+
+
+def test_plot_minimum_follows_the_scene_when_its_layout_changes_later(win, app):
+    """Tick-label widths (and fonts) change after a render, e.g. on a resize or a range change: the view's
+    minimum must follow, or a narrow window cuts off the histogram."""
+    apply_theme(app)
+    win.show()
+    win.resize(760, 600)
+    _settle(app)
+    before = win.glw.minimumWidth()
+    win.plot.getAxis("left").setWidth(300)            # what a wider tick label does, without a re-render
+    _settle(app)
+    scene_min = win.glw.ci.effectiveSizeHint(QtCore.Qt.SizeHint.MinimumSize).width()
+    assert scene_min > before
+    assert win.glw.minimumWidth() >= scene_min
+    assert win.glw.width() >= scene_min                                       # histogram fully visible
+    win.plot.getAxis("left").setWidth(None)           # back to automatic: the minimum shrinks again
+    _settle(app)
+    assert win.glw.minimumWidth() < scene_min
