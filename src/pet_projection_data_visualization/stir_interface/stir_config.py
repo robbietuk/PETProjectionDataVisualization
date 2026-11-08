@@ -20,6 +20,7 @@ from __future__ import annotations
 import enum
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -84,7 +85,8 @@ def config_dir(environ: Mapping[str, str] | None = None, platform: str | None = 
         base = home / "Library" / "Application Support"
     else:
         xdg = env.get("XDG_CONFIG_HOME", "")
-        base = Path(xdg) if xdg and os.path.isabs(xdg) else home / ".config"   # XDG: relative values are invalid
+        base = Path(xdg) if xdg and posixpath.isabs(xdg) else home / ".config"   # XDG: relative values are invalid;
+        # POSIX rules, not the host's: ntpath.isabs("/x") is False since Python 3.13
     return base / APP_DIR_NAME
 
 

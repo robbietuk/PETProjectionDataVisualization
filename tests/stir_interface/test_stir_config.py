@@ -44,6 +44,14 @@ def test_config_dir_follows_each_platform(tmp_path):
     assert config_dir({CONFIG_DIR_ENV_VAR: str(tmp_path / "o")}, "darwin", home) == tmp_path / "o"
 
 
+def test_config_dir_checks_xdg_with_posix_rules_on_any_host(tmp_path):
+    # The platform argument decides, not the host: on Windows, ntpath.isabs("/x") is False since Python 3.13
+    # and ntpath.isabs("C:\\cfg") is True; XDG_CONFIG_HOME follows POSIX rules either way.
+    home = tmp_path / "home"
+    assert config_dir({"XDG_CONFIG_HOME": "/x/cfg"}, "linux", home) == Path("/x/cfg") / "PETProjectionDataVisualization"
+    assert config_dir({"XDG_CONFIG_HOME": "C:\\cfg"}, "linux", home) == home / ".config" / "PETProjectionDataVisualization"
+
+
 def test_tests_use_a_private_config_folder(tmp_path):
     assert os.environ[CONFIG_DIR_ENV_VAR] in str(config_file_path())     # conftest: never the user's real file
 
