@@ -83,6 +83,10 @@ These came out of two independent code reviews, before the split from STIR:
   make those three objects effectively immortal at start-up, as Python 3.12 does.
 - conda-forge `stir` on Windows looked for its config files in the wrong folder; CI sets
   `STIR_CONFIG_DIR` to the installed tables.
+- The TOF profile plot keeps its x-axis fixed on every TOF bin of the data set (negative bins
+  included). The mouse wheel and dragging zoom and pan only the counts axis, which cannot be panned
+  below 0 when all counts are ≥ 0. A double-click or the "A" button fits the counts again. The
+  plot's right-click menu is gone.
 
 ### Changed
 

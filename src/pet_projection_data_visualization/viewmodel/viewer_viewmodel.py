@@ -133,6 +133,7 @@ class ViewerViewModel(ObservableObject):
     slice_mode: Observed[SliceMode] = Observed(SliceMode.SINOGRAM)
     tof_mode: Observed[TofMode] = Observed(TofMode.BIN)
     tof_available: Observed[bool] = Observed(False)
+    tof_range: Observed[tuple[int, int] | None] = Observed(None)   # (first, last) TOF bin; None for non-TOF data
     can_play: Observed[bool] = Observed(False)
     playing: Observed[bool] = Observed(False)
     fps: Observed[int] = Observed(4)
@@ -196,6 +197,7 @@ class ViewerViewModel(ObservableObject):
         self.source_path = os.fspath(obj) if isinstance(obj, (str, os.PathLike)) else ""
         self.status = f"Loaded {dataset.info.name}" + ("  (colour levels unlocked)" if was_locked else "")
         self.tof_available = dataset.info.is_tof
+        self.tof_range = (dataset.info.min_tof, dataset.info.max_tof) if dataset.info.is_tof else None
         self.tof_profile = None
         self.pixel_text = ""
         self._cursor = None

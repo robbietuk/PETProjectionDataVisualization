@@ -20,6 +20,7 @@ from ..viewmodel import (COLORMAP_OPTIONS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTION
 from . import components as ui
 from .styling import apply_theme, style_graphics_widget, style_histogram, style_plot
 from .theme import DARK, LIGHT, Palette
+from .tof_plot import TofViewBox
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
 
@@ -269,7 +270,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
         col.addWidget(self.metrics)
 
         self.tof_dock = ui.Card("TOF profile of the LOR under the cursor")
-        self.tof_plot = pg.PlotWidget()
+        # x (TOF bin) is fixed to the data set's bins; wheel, drag, double-click and "A" act on y (counts)
+        self.tof_view = TofViewBox()
+        self.tof_plot = pg.PlotWidget(viewBox=self.tof_view)
+        self.tof_plot.getPlotItem().setMenuEnabled(False)    # its x-axis entries would move the TOF bins out of view
         self.tof_plot.setLabel("bottom", "TOF bin")
         self.tof_plot.setLabel("left", "counts")
         self.tof_plot.setTitle("hover over the image")
@@ -421,6 +425,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         b(("levels", "level_mode"), self._paint_levels)       # after the image, as before
         b("info_text", lambda: self.info_view.setPlainText(self.vm.info_text))
         b("pixel_text", lambda: self._pixel_label.setText(self.vm.pixel_text))
+        b("tof_range", self._paint_tof_range)
         b("tof_profile", self._paint_tof_profile)
         b("tof_marker", self._paint_tof_marker)
         b("metrics", lambda: self.metrics.set_metrics(self.vm.metrics))
@@ -485,12 +490,19 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self._applying_levels = False
         self._painted_levels = levels
 
+    def _paint_tof_range(self) -> None:
+        r = self.vm.tof_range
+        if r is not None:                         # non-TOF data hides the plot
+            self.tof_view.set_tof_range(*r)
+
     def _paint_tof_profile(self) -> None:
         prof = self.vm.tof_profile
         if prof is None:
             self.tof_curve.setData([], [])
             self.tof_plot.setTitle("hover over the image")
+            self.tof_view.set_counts(())
         else:
+            self.tof_view.set_counts(prof.y)
             self.tof_curve.setData(list(prof.x), list(prof.y))
             self.tof_plot.setTitle(prof.title)
 
