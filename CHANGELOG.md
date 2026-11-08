@@ -86,6 +86,11 @@ These came out of two independent code reviews, before the split from STIR:
 
 ### Changed
 
+- Refreshed visual design: new light and dark palettes with one accent colour, flat cards with
+  subtle borders, a clear type scale and more generous spacing; the plots share the card colour.
+  Header chips are no longer clipped (a long data set title is shortened with "…" instead), and the
+  left panel narrows with the window down to the width its controls need instead of being fixed.
+  The statistics tiles wrap into two rows in a narrow window.
 - The three level modes *Auto*, *Fixed (global range)* and *Manual* became two, *Adaptive* and
   *Locked* (`LevelMode.ADAPTIVE` / `LevelMode.LOCKED`). The global range is now the
   *Lock to global range* action, and editing a level locks it. Toggling the log display no longer
