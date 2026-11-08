@@ -2,6 +2,7 @@
 """Real PySide6 + pyqtgraph, offscreen. Skipped where they are not installed."""
 import os
 
+import numpy as np
 import pytest
 
 pytest.importorskip("PySide6")
@@ -40,8 +41,11 @@ def test_user_edits_flow_into_the_view_model(win):
     assert win.vm.tof_mode is TofMode.SUM and not win.play_button.isEnabled()
     win.log_switch.setChecked(True)
     assert win.vm.log_display
-    win.level_control._buttons[list(LevelMode).index(LevelMode.FIXED)].click()
-    assert win.vm.level_mode is LevelMode.FIXED
+    win.level_control._buttons[list(LevelMode).index(LevelMode.LOCKED)].click()
+    assert win.vm.level_mode is LevelMode.LOCKED
+    win.global_button.click()
+    lo, hi = win.vm.dataset.global_range(win.vm.selection)
+    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == pytest.approx((np.log1p(lo), np.log1p(hi)))
 
 
 def test_view_model_changes_flow_into_the_widgets(win):
@@ -85,7 +89,7 @@ def test_playback_timer_follows_the_view_model(win):
 def test_user_dragging_levels_makes_them_manual_and_applying_levels_does_not_echo(win):
     win.hist.setLevels(1.0, 2.0)
     win._on_user_levels()
-    assert win.vm.level_mode is LevelMode.MANUAL and win.vm.levels == (1.0, 2.0)
+    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == (1.0, 2.0)
     win.vm.set_value("axial", 2)                     # programmatic setLevels must not re-enter set_manual_levels
     assert win.vm.levels == (1.0, 2.0)
 
@@ -129,7 +133,7 @@ def test_the_real_histogram_signal_reaches_the_view_model(win):
     """Emits pyqtgraph's own signal: guards against a wrong signal name (which would crash on startup)."""
     win.hist.setLevels(1.0, 2.0)
     win.hist.sigLevelChangeFinished.emit(win.hist)
-    assert win.vm.level_mode is LevelMode.MANUAL and win.vm.levels == (1.0, 2.0)
+    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == (1.0, 2.0)
 
 
 def _type_into(edit, text):
@@ -140,7 +144,7 @@ def _type_into(edit, text):
 def test_typed_level_and_path_controls(win, tmp_path):
     import numpy as np
     _type_into(win.level_edits["high"], "123")
-    assert win.vm.level_mode is LevelMode.MANUAL and win.vm.levels[1] == 123.0
+    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels[1] == 123.0
     np.save(tmp_path / "a.npy", np.zeros((4, 3, 5), dtype=np.float32))
     win.vm._factory = __import__("pet_projection_data_visualization.sources.loader", fromlist=["x"]).make_source
     win.path_edit.setText(f'  "{tmp_path / "a.npy"}"  ')             # Windows "Copy as path" style

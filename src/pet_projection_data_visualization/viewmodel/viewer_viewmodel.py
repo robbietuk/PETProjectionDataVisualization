@@ -80,12 +80,36 @@ class _Rendered:
     stats: SliceStats
 
 
+@dataclass(frozen=True)
+class _LevelLock:
+    """Locked colour levels, kept in the display scale they were set in (``log`` = log(1 + x) display).
+
+    Shown in the same scale they are returned exactly, so toggling the log display back and forth never
+    drifts them; shown in the other scale they are mapped through the same transform as the pixel values
+    (``x -> log(1 + max(x, 0))``, or its inverse ``expm1``), so they mark the same data values."""
+    lo: float
+    hi: float
+    log: bool
+
+    def shown(self, log_display: bool) -> tuple[float, float]:
+        if log_display == self.log:
+            return self.lo, self.hi
+        if log_display:
+            return float(np.log1p(max(self.lo, 0.0))), float(np.log1p(max(self.hi, 0.0)))
+        return float(np.expm1(self.lo)), float(np.expm1(self.hi))
+
+
 def clean_path(text: str) -> str:
     """Normalise a typed or pasted path: strip whitespace and one pair of surrounding quotes, expand ``~``."""
     text = (text or "").strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         text = text[1:-1].strip()
     return os.path.expanduser(text) if text else ""
+
+
+def _min_span(value: float) -> float:
+    """Smallest usable width of a level range starting at ``value`` (for constant data)."""
+    return max(abs(value) * 1e-6, float(np.finfo(np.float32).tiny))
 
 
 def _command(fn: Callable[Concatenate[ViewerViewModel, _P], _R]) -> Callable[Concatenate[ViewerViewModel, _P], _R]:
@@ -114,7 +138,7 @@ class ViewerViewModel(ObservableObject):
     fps: Observed[int] = Observed(4)
     tof_marker: Observed[int | None] = Observed(None)   # TOF bin to mark in the profile plot, or None
     colormap: Observed[str] = Observed(COLORMAPS[0])
-    level_mode: Observed[LevelMode] = Observed(LevelMode.AUTO)
+    level_mode: Observed[LevelMode] = Observed(LevelMode.ADAPTIVE)  # LOCKED: ``levels`` stay constant while navigating
     log_display: Observed[bool] = Observed(False)
     image: Observed[DisplayImage | None] = Observed(None)
     levels: Observed[tuple[float, float] | None] = Observed(None)   # (lo, hi)
@@ -131,7 +155,7 @@ class ViewerViewModel(ObservableObject):
         self._dataset: ProjDataset | None = None
         self._selection: Selection | None = None
         self._slice: SliceImage | None = None
-        self._manual_levels: tuple[float, float] | None = None
+        self._lock: _LevelLock | None = None      # set exactly when level_mode is LOCKED
         self._last_pixel: tuple[int, int] | None = None
         self._cursor: tuple[float, float] | None = None     # last hover position in axis coordinates
 
@@ -152,23 +176,25 @@ class ViewerViewModel(ObservableObject):
     def load(self, obj: object) -> bool:
         """Load a path, ``stir.ProjData`` or ``ProjDataSource`` through the injected factory.
         On failure the previous data stays, ``error`` is set and False is returned."""
-        level_mode = LevelMode.AUTO if self.level_mode is LevelMode.MANUAL else self.level_mode
         try:
             dataset = ProjDataset(self._factory(obj))
             selection = Selection.initial(dataset.info)
-            rendered = self._render(dataset, selection, level_mode, None)   # first slice must be readable
+            rendered = self._render(dataset, selection, None)   # first slice must be readable
         except Exception as exc:  # noqa: BLE001 - any loader failure is reported, not raised
-            self._report_error(f"Could not load projection data: {exc}")
+            self._report_error(f"Could not load projection data: {exc}")   # lock and levels stay as they were
             return False
-        self._manual_levels = None
-        self.level_mode = level_mode
+        # A new data set starts adaptive: limits locked on another data set (other units, other scale)
+        # would show it saturated or black without saying why.
+        was_locked = self._lock is not None
+        self._lock = None
+        self.level_mode = LevelMode.ADAPTIVE
         self.playing = False
         self.error = None
         self.loaded = True
         self.window_title = f"STIR projection data viewer - {dataset.info.name}"
         self.source_label = dataset.info.name
         self.source_path = os.fspath(obj) if isinstance(obj, (str, os.PathLike)) else ""
-        self.status = f"Loaded {dataset.info.name}"
+        self.status = f"Loaded {dataset.info.name}" + ("  (colour levels unlocked)" if was_locked else "")
         self.tof_available = dataset.info.is_tof
         self.tof_profile = None
         self.pixel_text = ""
@@ -267,36 +293,65 @@ class ViewerViewModel(ObservableObject):
 
     @_command
     def set_level_mode(self, mode: LevelMode) -> None:
-        old = self.level_mode
-        self.level_mode = mode
-        if (current := self._current()) is not None and not self._show(current[1]):
-            self.level_mode = old
+        """ADAPTIVE: levels follow every slice. LOCKED: freeze the levels shown now, so they stay constant
+        across every navigation (index, slice mode, TOF bin or reduction, playback, log toggle) until
+        edited or unlocked. Ignored while nothing is loaded."""
+        mode = LevelMode(mode)
+        if not self._ready() or mode is self.level_mode:
+            return
+        if mode is LevelMode.LOCKED:
+            lo, hi = self._shown_levels()
+            self._lock_at(_LevelLock(lo, hi, self.log_display))
+        else:
+            self._apply_lock(None)
+
+    @_command
+    def toggle_level_lock(self) -> None:
+        """Adaptive <-> Locked (the view's keyboard shortcut)."""
+        self.set_level_mode(LevelMode.ADAPTIVE if self.level_mode is LevelMode.LOCKED else LevelMode.LOCKED)
+
+    @_command
+    def lock_global_range(self) -> None:
+        """Lock the levels at the range of the whole data set as displayed in the current TOF mode
+        (every segment and, for single bins, every TOF bin). Reads everything once; on failure nothing changes."""
+        current = self._current()
+        if current is None:
+            return
+        dataset, sel = current
+        try:
+            lo, hi = dataset.global_range(sel)
+        except Exception as exc:  # noqa: BLE001 - keep the current levels, tell the user why
+            self._report_error(f"Could not compute the global range: {exc}")
+            self._mark_changed("level_mode", "levels")       # snap the widgets back
+            return
+        if hi <= lo:
+            hi = lo + _min_span(lo)
+        self._lock_at(_LevelLock(float(lo), float(hi), False))   # data units; mapped if log display is on
 
     @_command
     def set_log_display(self, enabled: bool) -> None:
+        """Adaptive levels are recomputed in the new scale; locked levels stay locked and are mapped
+        through the same transform as the pixels (see ``_LevelLock``)."""
+        old = self.log_display
         self.log_display = bool(enabled)
-        self._manual_levels = None     # levels chosen in the other scale are meaningless
-        if self.level_mode is LevelMode.MANUAL:
-            self.level_mode = LevelMode.AUTO
-        if (current := self._current()) is not None:
-            _, sel = current
-            self._show(sel)
+        if (current := self._current()) is not None and not self._show(current[1]):
+            self.log_display = old
 
     @_command
     def set_manual_levels(self, lo: float, hi: float) -> None:
-        """Called by the view when the user drags the histogram region. An empty, inverted or non-finite
-        range is rejected; ``levels`` is then re-announced so the view puts its widgets back."""
+        """The user dragged the histogram region or typed a limit: lock the levels at (lo, hi) in the
+        displayed scale (this locks them if they were adaptive). An empty, inverted or non-finite range is
+        rejected; ``levels`` is then re-announced so the view puts its widgets back."""
         if not (np.isfinite(lo) and np.isfinite(hi)) or hi <= lo:
             self.status = f"Ignored level range {lo:g} .. {hi:g}: the minimum must be below the maximum"
             self._mark_changed("levels")
             return
-        self._manual_levels = (float(lo), float(hi))
-        self.level_mode = LevelMode.MANUAL
-        self.levels = self._manual_levels
+        if self._ready():
+            self._lock_at(_LevelLock(float(lo), float(hi), self.log_display))
 
     @_command
     def set_level_bounds(self, low: float | None = None, high: float | None = None) -> None:
-        """Type in one or both colour-scale limits (switches to manual levels). Ignored if it would
+        """Type in one or both colour-scale limits (locks the levels). Ignored if it would
         make the range empty or inverted."""
         cur_lo, cur_hi = self.levels if self.levels is not None else (0.0, 1.0)
         lo = cur_lo if low is None else float(low)
@@ -345,21 +400,45 @@ class ViewerViewModel(ObservableObject):
         assert current is not None, "no data loaded"
         return current
 
+    def _shown_levels(self) -> tuple[float, float]:
+        """The levels on screen; there always are some once data is loaded."""
+        levels = self.levels
+        assert levels is not None, "no data loaded"
+        return levels
+
     def _report_error(self, message: str) -> None:
         self.error = message
         self._mark_changed("error")      # notify even if the text repeats
         self.status = message
+
+    def _lock_at(self, lock: _LevelLock) -> None:
+        if self._apply_lock(lock):
+            lo, hi = self._shown_levels()
+            self.status = f"Colour levels locked at {formatting.format_number(lo)} .. {formatting.format_number(hi)}"
+
+    def _apply_lock(self, lock: _LevelLock | None) -> bool:
+        """Switch to ``lock`` (None: adaptive) and redraw the current slice. All or nothing, like ``_show``."""
+        old = self._lock
+        self._lock = lock
+        self.level_mode = LevelMode.ADAPTIVE if lock is None else LevelMode.LOCKED
+        if self._show(self._loaded()[1]):
+            if lock is None:
+                self.status = "Colour levels follow each slice"
+            return True
+        self._lock = old
+        self.level_mode = LevelMode.ADAPTIVE if old is None else LevelMode.LOCKED
+        return False
 
     def _show(self, selection: Selection) -> bool:
         """Display ``selection`` of the current data set. All or nothing: if the slice cannot be read the
         previous selection, picture and controls stay (the view is told to repaint the controls)."""
         try:
             dataset, _ = self._loaded()
-            rendered = self._render(dataset, selection, self.level_mode, self._manual_levels)
+            rendered = self._render(dataset, selection, self._lock)
         except Exception as exc:  # noqa: BLE001 - keep the previous picture, tell the user why
             self.playing = False         # never keep playing into a stream of identical errors
             self._report_error(f"Could not read the slice: {exc}")
-            self._mark_changed("dimensions", "slice_mode", "tof_mode", "level_mode")  # snap widgets back
+            self._mark_changed("dimensions", "slice_mode", "tof_mode", "level_mode", "log_display")  # snap back
             return False
         self._commit(dataset, selection, rendered)
         return True
@@ -382,7 +461,8 @@ class ViewerViewModel(ObservableObject):
                                   float(cols), float(rows), image.row_axis, image.col_axis, image.title)
         self.levels = rendered.levels
         self.metrics = formatting.format_metrics(rendered.stats)
-        self.context = formatting.context_chips(info, sel)
+        self.context = formatting.context_chips(info, sel) + (
+            (formatting.format_level_lock(*rendered.levels, self.log_display),) if self._lock is not None else ())
         self.info_text = (formatting.describe_dataset(info) + "\n\n"
                           + formatting.describe_slice(image, rendered.stats))
         # the LOR under a resting cursor changes with the selection: recompute readout and profile
@@ -408,22 +488,15 @@ class ViewerViewModel(ObservableObject):
             return np.log1p(np.clip(data, 0, None)).astype(np.float32)
         return np.ascontiguousarray(data, dtype=np.float32)
 
-    def _render(self, dataset: ProjDataset, sel: Selection, level_mode: LevelMode,
-                manual: tuple[float, float] | None) -> "_Rendered":
-        """Everything needed to show ``sel``, computed without touching any observable state (may raise)."""
+    def _render(self, dataset: ProjDataset, sel: Selection, lock: _LevelLock | None) -> "_Rendered":
+        """Everything needed to show ``sel``, computed without touching any observable state (may raise).
+        Locked levels depend only on ``lock`` and the display scale, never on the slice."""
         image = dataset.slice(sel)
         disp = self._display_values(image.data)
-        if level_mode is LevelMode.FIXED:
-            lo, hi = dataset.global_range(sel)
-            if self.log_display:
-                lo, hi = float(np.log1p(max(lo, 0.0))), float(np.log1p(max(hi, 0.0)))
-        elif level_mode is LevelMode.MANUAL and manual is not None:
-            lo, hi = manual
-        else:
-            lo, hi = finite_range(disp) or (0.0, 1.0)
+        lo, hi = lock.shown(self.log_display) if lock is not None else (finite_range(disp) or (0.0, 1.0))
         if hi <= lo:
-            hi = lo + max(abs(lo) * 1e-6, float(np.finfo(np.float32).tiny))
-        return _Rendered(image, disp, (lo, hi), dataset.stats(image))
+            hi = lo + _min_span(lo)
+        return _Rendered(image, disp, (float(lo), float(hi)), dataset.stats(image))
 
     def _update_tof_profile(self, indices: dict[str, int]) -> None:
         dataset, sel = self._loaded()

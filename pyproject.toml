@@ -29,7 +29,10 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24.3",
-    "PySide6>=6.6",
+    # PySide6 6.12.0 over-releases None/True/False on Linux; Python 3.11 then aborts (3.12+ is immune).
+    # See src/pet_projection_data_visualization/_refcount_guard.py and README, "Known limitations".
+    "PySide6>=6.6,!=6.12.*; python_version < '3.12'",
+    "PySide6>=6.6; python_version >= '3.12'",
     "pyqtgraph>=0.13.7",
 ]
 # NOTE: `stir` is deliberately NOT listed. It is a compiled SWIG extension that

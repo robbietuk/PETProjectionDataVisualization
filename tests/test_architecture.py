@@ -134,6 +134,9 @@ def test_composition_root_is_the_only_top_level_module_that_wires_layers():
     for path in ROOT.glob("*.py"):
         if path.name in ("app.py", "cli.py", "__main__.py", "__init__.py", "_version.py"):  # _version.py: hatch-vcs
             continue
+        if path.name == "_refcount_guard.py":    # a process-wide interpreter fix shared by app.py and the tests
+            assert not [n for n, _ in imports_of(path) if n.split(".")[0] in QT | {PKG, "stir"}], path.name
+            continue
         raise AssertionError(f"unexpected top-level module {path.name}: put it in a layer")
 
 

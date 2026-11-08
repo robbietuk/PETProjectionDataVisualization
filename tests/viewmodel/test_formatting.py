@@ -47,3 +47,11 @@ def test_numbers_use_compact_notation():
     img = type(img)(img.data * 1e9, img.title, img.row_axis, img.col_axis, img.row_origin, img.col_origin)
     assert "e+" in formatting.describe_slice(img, compute_stats(img.data))
     assert np.isfinite(img.data).all()
+
+
+def test_level_lock_chip_is_short_and_hides_negligible_limits():
+    from pet_projection_data_visualization.viewmodel.formatting import format_level_lock
+    assert format_level_lock(0.0, 3.8612) == "Levels locked 0 – 3.861"
+    assert format_level_lock(6.9e-32, 52.04) == "Levels locked 0 – 52.04"
+    assert format_level_lock(1e-9, 2.5e-8) == "Levels locked 1e-09 – 2.5e-08"
+    assert format_level_lock(-2.0, 5.0, True).endswith("(log)")

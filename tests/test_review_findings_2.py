@@ -81,15 +81,15 @@ def test_2_failed_global_level_mode_is_not_left_selected():
     src = FailOn(small_demo(), lambda s, t: fail["on"] and s != 0)
     vm = vm_with(src)
     fail["on"] = True
-    vm.set_level_mode(LevelMode.FIXED)                  # needs every segment: fails
-    assert vm.level_mode is LevelMode.AUTO and vm.error
+    vm.lock_global_range()                  # needs every segment: fails
+    assert vm.level_mode is LevelMode.ADAPTIVE and vm.error
 
 
 # ---- 4: global levels cover all TOF bins -------------------------------------------------------
 def test_4_global_levels_do_not_change_during_playback_and_cover_every_bin():
     demo = small_demo()
     vm = vm_with(demo)
-    vm.set_level_mode(LevelMode.FIXED)
+    vm.lock_global_range()
     levels = {vm.levels}
     vm.set_playing(True)
     for _ in range(demo.info.num_tof_bins + 1):
