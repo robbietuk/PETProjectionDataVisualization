@@ -48,6 +48,9 @@ gh workflow run agent-pr.yml -f pr=34 -f mode=fix
 gh workflow run agent-triage.yml -f issue=12
 ```
 
+A review started this way (not by a push or `/review`) posts its findings only in the "Agent review"
+comment: the action offers inline comments only on pull request and comment events.
+
 ### What "ready to merge" means
 
 The review agent approved (no blocker or major finding) **and** every other check on that exact commit
@@ -84,9 +87,13 @@ in [CLAUDE.md](../CLAUDE.md#agent-labels). `scripts/agent_labels.sh` creates the
      `CLAUDE_CODE_OAUTH_TOKEN`;
    - or with an API key from console.anthropic.com: save it as `ANTHROPIC_API_KEY`.
 3. **Create the labels:** `scripts/agent_labels.sh`.
-4. **Protect `main`** (Settings › Branches): require a pull request, require the CI checks and
-   `agent/review`, and block force-pushes. This is what stops an agent from merging or pushing to
-   `main`, whatever it is told.
+4. **Protect `main` and the release tags** (Settings › Rules › Rulesets), with no bypass for the
+   Claude app:
+   - `main`: require a pull request, require the CI checks and `agent/review` (from GitHub Actions),
+     block force-pushes and deletion;
+   - tags `v*`: restrict creation, update and deletion to yourself, because a tag publishes a release.
+
+   This is what stops an agent from merging, pushing to `main` or releasing, whatever it is told.
 
 The workflows only run from `main`: the Claude action refuses to run a workflow file that differs from
 the default branch's copy. So a pull request cannot change what the agents may do for itself.
@@ -95,15 +102,25 @@ the default branch's copy. So a pull request cannot change what the agents may d
 
 This is a public repository, so anyone can open an issue or a pull request.
 
-- **Triage** reads text from anyone. It runs with no write tools and only this job's `GITHUB_TOKEN`
-  (`contents: read`, `issues: write`). Its JSON answer is posted by a script that also defuses
-  @-mentions.
+- **Triage** reads text from anyone. It can only read files in the checkout (not `/proc`), has no write
+  tools, and runs with only this job's `GITHUB_TOKEN` (`contents: read`, `issues: write`). A script
+  posts its JSON answer, capped in length, with @-mentions defused and anything that looks like a token
+  redacted. Every new issue costs one triage run.
 - **Nothing is built without the maintainer.** The implement agent starts only on `/approve` or the
   `agent:approved` label from someone with write access. Read the triage plan before approving: the
   agent follows it.
+- **Agents never read comments from the public.** The workflows hand the implement, review and fix
+  agents a file with the plan that the triage *workflow* posted, the pull request description, and
+  the comments of the maintainers and the agents only. A stranger cannot post a fake plan or talk the
+  review into approving. `@claude` sees only the owner's and the agents' comments.
+- **The jobs' own tokens are read-only where an agent runs code.** The Claude GitHub App's short-lived
+  token does all pushing and pull request work; the job's `GITHUB_TOKEN` (also visible to the agent)
+  can at most comment and label.
 - **Fork pull requests** get no secrets on the `pull_request` event, so they are not reviewed
-  automatically. `/review` reviews them with the fork's files in a separate folder, read-only, and the
-  fix agent never runs on them.
+  automatically. `/review` reviews them with the fork's files outside the checkout, stripped of agent
+  configuration (`CLAUDE.md`, `.claude/`), read-only. The fix agent and `@claude` never run on them.
+- **Pull requests that change the agent workflows** are not reviewed by the agents: the Claude action
+  only runs workflow files identical to `main`'s. The review marks them "needs a human review".
 - **Agents cannot merge.** The review agent has read-only tools. `gh pr merge` and `gh api` are blocked
   for the agents that write, and the Claude GitHub App cannot change `.github/workflows/`. Branch
   protection on `main` is the hard limit: without it, an agent with a push token could reach `main`.
