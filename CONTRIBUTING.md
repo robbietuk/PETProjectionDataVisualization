@@ -14,6 +14,24 @@ QT_QPA_PLATFORM=offscreen pytest                    # the same command CI runs
 The real-STIR tests run only where `import stir` works. Use a conda environment with conda-forge
 `stir` and point the tests at a file with `STIR_TEST_PROJDATA=/path/to/file.hs`.
 
+### VS Code
+
+`.vscode/launch.json` adds three configurations to the **Run and Debug** panel (Ctrl+Shift+D / Cmd+Shift+D).
+Pick one from the drop-down and press F5:
+
+- **Viewer: demo data** starts the viewer on the built-in synthetic data set (`--demo`, needs no STIR).
+- **Viewer: pick a file** asks for the path to a `.hs` or `.npy` file, then opens the viewer on it.
+- **Pytest: current file** runs pytest on the test file open in the editor. Only this configuration sets
+  `QT_QPA_PLATFORM=offscreen`; the viewer configurations open real windows.
+
+VS Code offers the recommended extensions from `.vscode/extensions.json` (Python and Python Debugger) when
+you open the folder. Every configuration runs `${workspaceFolder}/.venv/bin/python`, the environment from
+the setup above. If you use conda instead (for example to have `stir`), either select the conda
+environment with **Python: Select Interpreter** and delete the `"python"` lines from your local copy of
+`launch.json`, or change them to your environment's interpreter, such as
+`~/miniforge3/envs/stir/bin/python`; do not commit that change. On Windows the venv interpreter is
+`.venv\Scripts\python.exe`. Other files in `.vscode/`, such as `settings.json`, are git-ignored.
+
 ## Type checking
 
 `src/`, `scripts/` and `packaging/` are type-checked with [Pyrefly](https://pyrefly.org) in strict mode, as a

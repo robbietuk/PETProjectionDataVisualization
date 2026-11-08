@@ -12,3 +12,8 @@ src/pet_projection_data_visualization/_version.py
 
 # inputs the agent workflows prepare for Claude
 .agent-input/
+
+# VS Code: share the launcher and the extension recommendations, keep the rest local
+.vscode/*
+!.vscode/launch.json
+!.vscode/extensions.json
