@@ -13,9 +13,9 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 import numpy.typing as npt
 
+from ..model.stir_setup import StirNotFoundError
 
-class StirNotFoundError(ImportError):
-    """The STIR Python module could not be imported."""
+__all__ = ["ProjDataLayout", "StirGateway", "StirNotFoundError", "StirProjDataHandle"]
 
 
 @dataclass(frozen=True)

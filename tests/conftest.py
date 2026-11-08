@@ -14,6 +14,13 @@ _exit_status = 0
 protect_singletons()
 
 
+@pytest.fixture(autouse=True)
+def _private_config_dir(tmp_path_factory, monkeypatch):
+    """Never read or write the real per-user settings (the saved STIR path) from a test."""
+    monkeypatch.setenv("PET_PDV_CONFIG_DIR", str(tmp_path_factory.mktemp("config")))
+    monkeypatch.delenv("PET_PDV_STIR_RESTARTED", raising=False)
+
+
 def pytest_sessionfinish(session, exitstatus):
     global _exit_status
     _exit_status = int(exitstatus)
