@@ -120,7 +120,8 @@ This is a public repository, so anyone can open an issue or a pull request.
   automatically. `/review` reviews them with the fork's files outside the checkout, stripped of agent
   configuration (`CLAUDE.md`, `.claude/`), read-only. The fix agent and `@claude` never run on them.
 - **Pull requests that change the agent workflows** are not reviewed by the agents: the Claude action
-  only runs workflow files identical to `main`'s. The review marks them "needs a human review".
+  only runs workflow files identical to `main`'s. The review marks them "needs a human review" and sets
+  `agent/review` to success so that they can be merged; review those by hand.
 - **Agents cannot merge.** The review agent has read-only tools. `gh pr merge` and `gh api` are blocked
   for the agents that write, and the Claude GitHub App cannot change `.github/workflows/`. Branch
   protection on `main` is the hard limit: without it, an agent with a push token could reach `main`.

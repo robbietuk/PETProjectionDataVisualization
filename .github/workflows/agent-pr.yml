@@ -201,13 +201,14 @@ jobs:
           persist-credentials: false
       - name: Fetch the fork's files (read only)
         if: env.SAME_REPO != 'true'
-        env:
-          HEAD_REPO: ${{ needs.context.outputs.head_repo }}
         run: |
           dir="$RUNNER_TEMP/pr-head"
           git init -q "$dir"
-          git -C "$dir" fetch -q --depth 1 "https://github.com/$HEAD_REPO.git" "$HEAD_SHA"
+          # from this repository's pull request ref, which exists even if the fork was deleted
+          git -C "$dir" fetch -q --depth 1 "https://github.com/$GITHUB_REPOSITORY.git" "refs/pull/$PR/head"
           git -C "$dir" checkout -q FETCH_HEAD
+          test "$(git -C "$dir" rev-parse HEAD)" = "$HEAD_SHA" || { echo "The pull request moved; review again"; exit 1; }
+          find "$dir" -type l -delete      # a symlink could point the reader at /proc or the home folder
           rm -rf "$dir/CLAUDE.md" "$dir/CLAUDE.local.md" "$dir/AGENTS.md" "$dir/.claude" "$dir/.mcp.json" "$dir/.git"
           find "$dir" \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name .claude \) -prune -exec rm -rf {} +
 
@@ -507,11 +508,13 @@ jobs:
           claude_args: |
             --model ${{ vars.AGENT_MODEL || 'claude-opus-5-5' }}
             --max-turns 200
+            --permission-mode acceptEdits
             --allowedTools "Read,Edit(./**),Glob,Grep,LS,TodoWrite,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git rm:*),Bash(git mv:*),Bash(git commit -m:*),Bash(git restore:*),Bash(git fetch:*),Bash(git merge:*),Bash(git push origin HEAD:${{ env.HEAD_REF }}),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(pre-commit:*),Bash(ruff:*),Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh run view:*)"
             --disallowedTools "Bash(gh pr merge:*),Bash(gh api:*)"
 
       - name: Record the round
-        if: ${{ !cancelled() && steps.round.outputs.go == 'true' }}
+        # always(): a job that times out is cancelled, and a round that pushed must still be counted
+        if: always() && steps.round.outputs.go == 'true'
         uses: actions/github-script@v7
         env:
           ROUND: ${{ steps.round.outputs.round }}

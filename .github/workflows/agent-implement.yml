@@ -166,6 +166,7 @@ jobs:
           claude_args: |
             --model ${{ vars.AGENT_MODEL || 'claude-opus-5-5' }}
             --max-turns 250
+            --permission-mode acceptEdits
             --allowedTools "Read,Edit(./**),Glob,Grep,LS,TodoWrite,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git rm:*),Bash(git mv:*),Bash(git commit:*),Bash(git restore:*),Bash(git fetch:*),Bash(git merge:*),Bash(git push -u origin HEAD:${{ env.BRANCH }}),Bash(git push origin HEAD:${{ env.BRANCH }}),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(pre-commit:*),Bash(ruff:*),Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*)"
             --disallowedTools "Bash(gh pr merge:*),Bash(gh api:*)"
             --json-schema '{"type":"object","additionalProperties":false,"required":["status","summary"],"properties":{"status":{"type":"string","enum":["pr_opened","needs_info","failed"]},"pr_number":{"type":"integer"},"summary":{"type":"string"}}}'
