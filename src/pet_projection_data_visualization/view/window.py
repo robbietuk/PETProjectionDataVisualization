@@ -18,6 +18,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from ..viewmodel import (COLORMAP_OPTIONS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS,
                          BindingRegistry, LevelMode, ViewerViewModel)
 from . import components as ui
+from .stir_setup_dialog import StirSetupDialog
 from .styling import apply_theme, style_graphics_widget, style_histogram, style_plot
 from .theme import DARK, LIGHT, Palette
 
@@ -73,6 +74,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self._applying_levels = False
         self._levels_from_histogram = False     # set while a histogram drag is handed to the view model
         self._painted_levels: tuple[float, float] | None = None
+        self._stir_setup_pending = False         # the STIR setup window is scheduled or open
         self._build_menu()
         self._build_layout()
         self._pixel_label = QtWidgets.QLabel("")
@@ -375,6 +377,22 @@ class ViewerWindow(QtWidgets.QMainWindow):
         except Exception as exc:  # noqa: BLE001 - show it in the banner, don't crash the viewer
             self.vm.report_error(f"Could not save the image: {exc}")
 
+    def _on_stir_setup_requested(self) -> None:
+        # opened from the event loop, not from inside the load command that asked for it
+        if self.vm.stir_setup_file is not None and not self._stir_setup_pending:
+            self._stir_setup_pending = True
+            QtCore.QTimer.singleShot(0, self._show_stir_setup)
+
+    def _show_stir_setup(self) -> None:
+        try:
+            setup = self.vm.open_stir_setup()
+            if setup is None:
+                return
+            StirSetupDialog(setup, self).exec()
+        finally:
+            self._stir_setup_pending = False
+        self._run(self.vm.finish_stir_setup)      # after Save: restart, or load the file again
+
     def _on_timer(self) -> None:
         self.vm.tick()
 
@@ -425,6 +443,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         b("tof_marker", self._paint_tof_marker)
         b("metrics", lambda: self.metrics.set_metrics(self.vm.metrics))
         b("context", lambda: self.chips.set_chips(self.vm.context))
+        b("stir_setup_file", self._on_stir_setup_requested)
 
     def _show_page(self) -> None:
         self.pages.setCurrentIndex(self.PAGE_VIEWER if self.vm.loaded else self.PAGE_EMPTY)
