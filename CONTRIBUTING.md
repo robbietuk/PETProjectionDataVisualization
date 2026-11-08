@@ -55,6 +55,12 @@ All changes go to `main` through pull requests. Nothing is pushed to `main` dire
    was not tested.
 4. CI must be green: pre-commit, the tests on all three operating systems, real STIR, and the build.
 
+## Agents
+
+Claude agents triage issues, implement what the maintainer approves with `/approve`, review every pull
+request and fix the findings. They never merge. How it works, the commands and the one-time setup are in
+[docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md); the rules agents follow are in [CLAUDE.md](CLAUDE.md).
+
 ## Versioning
 
 The project follows [Semantic Versioning](https://semver.org/). The **git tag is the only source of
