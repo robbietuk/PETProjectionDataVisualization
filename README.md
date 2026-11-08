@@ -23,6 +23,24 @@ no compiled executable.
 This started as a rewrite of STIR's `examples/python/projdata_visualisation` (PyQt5 + matplotlib), which is
 still part of STIR and unchanged. See [docs/PLAN.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/PLAN.md) for design decisions and the roadmap.
 
+## Getting set up
+
+New to Python or conda? The [step-by-step guide](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/INSTALL.md)
+covers Windows, macOS and Linux: installing Python 3.11 or newer, Miniforge and the viewer, checking it works,
+and common problems (such as macOS's built-in `/usr/bin/python3`, which is 3.9 and too old). In short:
+
+* **Desktop app, no Python needed:** download the app for your system from
+  [GitHub Releases](https://github.com/robbietuk/PETProjectionDataVisualization/releases). STIR is included.
+* **conda (recommended, includes STIR):** install [Miniforge](https://github.com/conda-forge/miniforge), then
+  `conda create -n petpdv -c conda-forge petprojectiondatavisualization` and `conda activate petpdv`.
+* **pip (no STIR):** in a virtual environment with Python 3.11 or newer,
+  `pip install PETProjectionDataVisualization`. Numpy files and the demo work; `.hs` files need STIR from
+  elsewhere.
+
+Then run `pet-projection-data-visualization --demo`. Until the PyPI and conda-forge packages are published,
+the guide shows how to install from GitHub instead. Developer set-up (editable install, pre-commit, tests) is in
+[CONTRIBUTING.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/CONTRIBUTING.md).
+
 ## Versions and changes
 
 Releases follow [semantic versioning](https://semver.org/); the version comes only from the git tag
@@ -32,7 +50,8 @@ and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests and releasing.
 ## Install
 
 STIR's Python module is a compiled extension and is **not** a pip dependency; the viewer finds it
-at run time. Pick one:
+at run time. To install from a clone of this repository (macOS/Linux shell; for Windows and for installing
+Python or conda first, see [Getting set up](#getting-set-up)), pick one:
 
 ```sh
 # A) conda (recommended): STIR, Qt and the viewer in one environment
