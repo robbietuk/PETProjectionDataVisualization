@@ -9,11 +9,12 @@ pytest.importorskip("PySide6")
 pytest.importorskip("pyqtgraph")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6 import QtWidgets  # noqa: E402
+from PySide6 import QtCore, QtWidgets  # noqa: E402
 
 from fakes import non_tof_source, small_demo  # noqa: E402
 from pet_projection_data_visualization.model import SliceMode, TofMode  # noqa: E402
-from pet_projection_data_visualization.view.window import ViewerWindow  # noqa: E402
+from pet_projection_data_visualization.view.styling import apply_theme  # noqa: E402
+from pet_projection_data_visualization.view.window import SIDEBAR_WIDTH, ViewerWindow  # noqa: E402
 from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel  # noqa: E402
 
 
@@ -252,3 +253,37 @@ def test_view_refits_to_the_image_when_the_slice_geometry_changes(win, app):
         win.vm.set_slice_mode(mode)
         app.processEvents()
         assert _view_range(win) == pytest.approx(_image_extent(win)), mode
+
+
+def _settle(app):
+    for _ in range(5):
+        app.processEvents()
+
+
+def test_side_panel_is_wide_in_a_wide_window_and_narrows_in_a_narrow_one(win, app):
+    apply_theme(app)
+    win.show()
+    win.resize(1320, 840)
+    _settle(app)
+    assert win.sidebar.width() == SIDEBAR_WIDTH
+    win.resize(760, 600)
+    _settle(app)
+    side, content = win.sidebar, win.sidebar.widget()
+    assert side.minimumWidth() < side.maximumWidth() == SIDEBAR_WIDTH        # a range, not a fixed width
+    assert side.width() < SIDEBAR_WIDTH
+    assert side.horizontalScrollBarPolicy() == QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert side.viewport().width() >= content.minimumSizeHint().width()       # nothing cut off on the right
+    assert content.height() > side.viewport().height()                       # it scrolls vertically instead
+    for edit in win.level_edits.values():
+        assert edit.minimumWidth() < edit.maximumWidth()                     # level boxes are not fixed-width
+
+
+def test_narrow_window_does_not_cut_off_the_plot_or_the_header(win, app):
+    apply_theme(app)
+    win.show()
+    win.resize(760, 600)
+    _settle(app)
+    scene_min = win.glw.ci.effectiveSizeHint(QtCore.Qt.SizeHint.MinimumSize).width()
+    assert win.glw.width() >= scene_min                                       # histogram fully visible
+    assert win.chips.width() >= win.chips.sizeHint().width()                  # chips are not squeezed
+    assert win.title_label.text() == win.vm.source_label                      # elided on screen, full text kept

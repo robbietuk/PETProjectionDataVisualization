@@ -12,11 +12,12 @@ from __future__ import annotations
 
 from typing import Callable, Generic, Hashable, Iterable, TypeVar
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..viewmodel.formatting import format_number, parse_number
 from ..viewmodel.options import ChoiceOptions
 from ._compat import override
+from .theme import CHIP_HEIGHT, GAP, PAD
 
 T = TypeVar("T", bound=Hashable)
 
@@ -115,8 +116,8 @@ class Card(QtWidgets.QFrame):
         super().__init__(parent)
         self.setObjectName("Card")
         lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(14, 12, 14, 14)
-        lay.setSpacing(10)
+        lay.setContentsMargins(PAD, PAD - 2, PAD, PAD)
+        lay.setSpacing(GAP - 2)
         self.title_label = QtWidgets.QLabel(title.upper())
         self.title_label.setObjectName("CardTitle")
         self.title_label.setVisible(bool(title))
@@ -141,19 +142,70 @@ class LabeledRow(QtWidgets.QWidget):
         self.control = control
 
 
+class ElidedLabel(QtWidgets.QLabel):
+    """One-line label that shows ``…`` instead of being cut off, and can shrink to a few characters.
+
+    ``text()`` keeps the full text; the tooltip shows it when the label is elided."""
+
+    def __init__(self, text: str = "", parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Fixed)
+
+    def is_elided(self) -> bool:
+        return self._elided_text() != self.text()
+
+    def _elided_text(self) -> str:
+        return self.fontMetrics().elidedText(self.text(), QtCore.Qt.TextElideMode.ElideRight,
+                                             self.contentsRect().width())
+
+    @override
+    def minimumSizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        hint = super().minimumSizeHint()
+        return QtCore.QSize(min(hint.width(), self.fontMetrics().horizontalAdvance("Mmm…")), hint.height())
+
+    @override
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # noqa: N802 - Qt override
+        painter = QtGui.QPainter(self)
+        try:
+            painter.drawText(self.contentsRect(), int(self.alignment() | QtCore.Qt.AlignmentFlag.AlignVCenter),
+                             self._elided_text())
+        finally:
+            painter.end()
+
+    @override
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self.setToolTip(self.text() if self.is_elided() else "")
+
+
 class Chip(QtWidgets.QFrame):
+    """A pill with one line of text. It never shrinks below its text: the padding is in the layout margins
+    (not in the label's stylesheet, which Qt leaves out of the label's size hint), and the height is at
+    least ``CHIP_HEIGHT``, which the stylesheet's radius (``CHIP_HEIGHT / 2``) is made for."""
+
     def __init__(self, text: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Chip")
         lay = QtWidgets.QHBoxLayout(self)
-        lay.setContentsMargins(0, 2, 0, 2)
+        lay.setContentsMargins(10, 2, 10, 2)
         self.label = QtWidgets.QLabel(text)
+        self.label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self.label)
+        self.setMinimumHeight(CHIP_HEIGHT)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
+
+    @override
+    def sizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        return super().sizeHint().expandedTo(self.minimumSize())
 
 
 class ChipRow(QtWidgets.QWidget):
+    """Chips side by side. The row keeps its size hint (``Minimum`` policy), so a neighbour such as a long
+    title gives way instead of the chips being squeezed."""
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Fixed)
         self._row = QtWidgets.QHBoxLayout(self)
         self._row.setContentsMargins(0, 0, 0, 0)
         self._row.setSpacing(6)
@@ -181,8 +233,8 @@ class MetricTile(QtWidgets.QFrame):
         super().__init__(parent)
         self.setObjectName("Tile")
         lay = QtWidgets.QVBoxLayout(self)
-        lay.setContentsMargins(10, 7, 10, 8)
-        lay.setSpacing(0)
+        lay.setContentsMargins(12, 8, 12, 9)
+        lay.setSpacing(2)
         self.name = QtWidgets.QLabel("")
         self.name.setObjectName("TileLabel")
         self.value = QtWidgets.QLabel("")
@@ -192,11 +244,16 @@ class MetricTile(QtWidgets.QFrame):
 
 
 class MetricGrid(QtWidgets.QWidget):
-    """Grid of label/value tiles filled from ``((label, value), ...)``."""
+    """Grid of label/value tiles filled from ``((label, value), ...)``.
+
+    ``columns`` is the most tiles per row. When the grid is too narrow for that many, it reflows into
+    fewer columns (down to half of ``columns``) instead of squeezing the numbers."""
 
     def __init__(self, columns: int = 3, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._columns = columns
+        self._min_columns = max(1, (columns + 1) // 2)
+        self._shown_columns = columns
         self._grid = QtWidgets.QGridLayout(self)
         self._grid.setContentsMargins(0, 0, 0, 0)
         self._grid.setSpacing(8)
@@ -205,12 +262,15 @@ class MetricGrid(QtWidgets.QWidget):
     def pairs(self) -> list[tuple[str, str]]:
         return [(t.name.text(), t.value.text()) for t in self._tiles if not t.isHidden()]
 
+    def column_count(self) -> int:
+        return self._shown_columns
+
     def set_metrics(self, pairs: Iterable[tuple[str, str]]) -> None:
         pairs = list(pairs)
         while len(self._tiles) < len(pairs):
             tile = MetricTile()
             n = len(self._tiles)
-            self._grid.addWidget(tile, n // self._columns, n % self._columns)
+            self._grid.addWidget(tile, n // self._shown_columns, n % self._shown_columns)
             self._tiles.append(tile)
         for tile, (name, value) in zip(self._tiles, pairs):
             tile.name.setText(name)
@@ -218,6 +278,45 @@ class MetricGrid(QtWidgets.QWidget):
             tile.setVisible(True)
         for tile in self._tiles[len(pairs):]:
             tile.setVisible(False)
+        # new values may need wider tiles: reflow once the tiles have taken the new text
+        QtCore.QTimer.singleShot(0, self, self._reflow_to_width)
+
+    def _reflow_to_width(self) -> None:
+        self._reflow(self.width())
+
+    def _tile_width(self) -> int:
+        return max((t.minimumSizeHint().width() for t in self._tiles), default=0)
+
+    def _row_width(self, columns: int) -> int:
+        return columns * self._tile_width() + (columns - 1) * self._grid.horizontalSpacing()
+
+    def _reflow(self, width: int) -> None:
+        columns = self._columns
+        while columns > self._min_columns and self._row_width(columns) > width:
+            columns -= 1
+        shown = max(1, sum(1 for t in self._tiles if not t.isHidden()))
+        rows = -(-shown // columns)
+        while columns > self._min_columns and -(-shown // (columns - 1)) == rows:
+            columns -= 1                        # same number of rows, fuller last row: 3 + 3, not 5 + 1
+        if columns == self._shown_columns:
+            return
+        self._shown_columns = columns
+        for tile in self._tiles:
+            self._grid.removeWidget(tile)
+        for n, tile in enumerate(self._tiles):
+            self._grid.addWidget(tile, n // columns, n % columns)
+        for c in range(self._columns):          # columns left over from the wider layout take no space
+            self._grid.setColumnStretch(c, 1 if c < columns else 0)
+
+    @override
+    def minimumSizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        hint = super().minimumSizeHint()
+        return QtCore.QSize(min(hint.width(), self._row_width(self._min_columns)), hint.height())
+
+    @override
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self._reflow(event.size().width())
 
 
 class Banner(QtWidgets.QFrame):
@@ -258,6 +357,7 @@ class EmptyState(QtWidgets.QWidget):
         self.title_label.setObjectName("EmptyTitle")
         self.hint_label = QtWidgets.QLabel(hint)
         self.hint_label.setObjectName("EmptyHint")
+        self.hint_label.setWordWrap(True)          # long hints wrap instead of widening the window
         for lbl in (self.title_label, self.hint_label):
             lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             lay.addWidget(lbl)
@@ -290,7 +390,7 @@ class DimensionControl(QtWidgets.QWidget):
         self._range.setObjectName("Muted")
         self._slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self._spin = QtWidgets.QSpinBox()
-        self._spin.setFixedWidth(76)
+        self._spin.setMinimumWidth(72)            # a minimum, not a fixed width: the panel can narrow
         head = QtWidgets.QHBoxLayout()
         head.setContentsMargins(0, 0, 0, 0)
         head.addWidget(self._label)
@@ -318,6 +418,35 @@ class DimensionControl(QtWidgets.QWidget):
         self._label.setText(label)
         self._range.setText(f"{lo} – {hi}")
         self.setEnabled(enabled)
+
+
+class SidePanel(QtWidgets.QScrollArea):
+    """Vertically scrolling side panel whose width moves between the content's minimum and ``max_width``.
+
+    It never scrolls horizontally, so it reports the content's minimum width (plus the vertical scroll bar)
+    as its own minimum: a layout cannot squeeze it until controls are cut off."""
+
+    def __init__(self, content: QtWidgets.QWidget, max_width: int, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Preferred)
+        self.setMaximumWidth(max_width)
+        self.setWidget(content)
+
+    def _chrome(self) -> int:
+        return 2 * self.frameWidth() + self.verticalScrollBar().sizeHint().width()
+
+    @override
+    def minimumSizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        content = self.widget()
+        width = content.minimumSizeHint().width() if content is not None else 0
+        return QtCore.QSize(min(width + self._chrome(), self.maximumWidth()), super().minimumSizeHint().height())
+
+    @override
+    def sizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        return QtCore.QSize(self.maximumWidth(), super().sizeHint().height())
 
 
 class NumberEdit(QtWidgets.QLineEdit):
