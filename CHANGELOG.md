@@ -62,6 +62,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   [Pyrefly](https://pyrefly.org) type check (`preset = "strict"` plus no explicit or inferred `Any`, apart from
   one alias for the untyped SWIG `stir` module), run as a pre-commit hook. The package ships a `py.typed`
   marker, so its types are visible to users' type checkers.
+- **Python 3.14.** Support for Python 3.14.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
 
 ### Fixed
