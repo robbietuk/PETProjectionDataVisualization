@@ -24,3 +24,12 @@ def test_licence_files_exist_and_are_declared():
 def test_package_is_marked_as_typed():
     """PEP 561: ``py.typed`` makes type checkers use the package's own annotations (the wheel ships it)."""
     assert (ROOT / "src" / "pet_projection_data_visualization" / "py.typed").is_file()
+
+
+def test_version_stub_is_not_shipped_in_the_wheel():
+    """``_version.pyi`` is for checkouts without the generated ``_version.py``. In the wheel it would shadow the
+    real, fully typed ``_version.py`` for type checkers (``py.typed``), hiding ``version_tuple``, ``commit_id``..."""
+    import tomllib
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
+    assert "/src/pet_projection_data_visualization/_version.pyi" in wheel.get("exclude", [])

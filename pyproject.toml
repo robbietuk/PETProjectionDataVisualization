@@ -83,6 +83,9 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pet_projection_data_visualization"]
+# the stub only stands in for _version.py in a checkout that has none; the wheel always has the real (typed)
+# _version.py, and a shipped stub would hide its other names (version_tuple, commit_id, ...) from type checkers
+exclude = ["/src/pet_projection_data_visualization/_version.pyi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
