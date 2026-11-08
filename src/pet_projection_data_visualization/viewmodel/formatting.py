@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 from ..model import ProjDataInfo, Selection, SliceImage, SliceMode, SliceStats, TofMode
 
@@ -86,3 +87,11 @@ def parse_number(text: str) -> float | None:
     except (ValueError, AttributeError):
         return None
     return value if math.isfinite(value) else None
+
+
+def clean_path(text: str) -> str:
+    """Normalise a typed or pasted path: strip whitespace and one pair of surrounding quotes, expand ``~``."""
+    text = (text or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1].strip()
+    return os.path.expanduser(text) if text else ""
