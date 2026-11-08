@@ -21,7 +21,7 @@ PySide6 + pyqtgraph (no matplotlib), Python >= 3.11. A development tool: run it 
 no compiled executable.
 
 This started as a rewrite of STIR's `examples/python/projdata_visualisation` (PyQt5 + matplotlib), which is
-still part of STIR and unchanged. See [PLAN.md](PLAN.md) for design decisions and the roadmap.
+still part of STIR and unchanged. See [docs/PLAN.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/PLAN.md) for design decisions and the roadmap.
 
 ## Versions and changes
 
