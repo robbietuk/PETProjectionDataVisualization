@@ -49,7 +49,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
 - **Continuous integration** on GitHub Actions, modelled on STIR's own CI and run only on standard
   free runners:
   - pre-commit, with STIR's generic hooks plus ruff and a strict Pyrefly type check
-  - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.13
+  - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.14
   - a real-STIR job with conda-forge `stir` 6.4.0 and STIR's own test data
   - building the wheel and sdist and installing each into a clean environment on all three
     operating systems
