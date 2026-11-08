@@ -1,5 +1,20 @@
 # PETProjectionDataVisualization
 
+[![tests](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/test.yml?query=branch%3Amain)
+[![pre-commit](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/pre-commit.yml/badge.svg?branch=main)](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/pre-commit.yml?query=branch%3Amain)
+[![real STIR](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/stir.yml/badge.svg?branch=main)](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/stir.yml?query=branch%3Amain)
+[![build](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/build.yml?query=branch%3Amain)
+[![app](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/app.yml/badge.svg?branch=main)](https://github.com/robbietuk/PETProjectionDataVisualization/actions/workflows/app.yml?query=branch%3Amain)
+
+<!-- The PyPI and conda-forge badges show "not found" until the first release is published. -->
+[![PyPI version](https://img.shields.io/pypi/v/PETProjectionDataVisualization)](https://pypi.org/project/PETProjectionDataVisualization/)
+[![Python versions](https://img.shields.io/pypi/pyversions/PETProjectionDataVisualization)](https://pypi.org/project/PETProjectionDataVisualization/)
+[![conda-forge version](https://img.shields.io/conda/vn/conda-forge/petprojectiondatavisualization)](https://anaconda.org/conda-forge/petprojectiondatavisualization)
+[![conda-forge platforms](https://img.shields.io/conda/pn/conda-forge/petprojectiondatavisualization)](https://anaconda.org/conda-forge/petprojectiondatavisualization)
+[![last commit](https://img.shields.io/github/last-commit/robbietuk/PETProjectionDataVisualization/main)](https://github.com/robbietuk/PETProjectionDataVisualization/commits/main)
+[![commits since latest release](https://img.shields.io/github/commits-since/robbietuk/PETProjectionDataVisualization/latest/main)](https://github.com/robbietuk/PETProjectionDataVisualization/commits/main)
+[![license](https://img.shields.io/github/license/robbietuk/PETProjectionDataVisualization)](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/LICENSE)
+
 Interactive viewer for STIR projection data: sinograms, viewgrams and tangential slices, with
 a time-of-flight (TOF) dimension you can step through, play back, or collapse.
 PySide6 + pyqtgraph (no matplotlib), Python >= 3.11. A development tool: run it as a script,
