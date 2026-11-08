@@ -125,7 +125,7 @@ Done when: the three app builds are green. Done.
 
 ### 8. Docs cleanup (`port/docs`)
 
-- Move `PLAN.md` to `docs/PLAN.md` and keep it as the design record and roadmap.
+- Move `PLAN.md` to `docs/PLAN.md` and keep it as the design record and roadmap. Done.
 - README: the opening says what the project is on its own, not "a rewrite of a STIR example". Install
   section in this order: conda (`conda install -c conda-forge petprojectiondatavisualization`, once step 11
   is done), pip (and how to point it at STIR), from source. Remove the STIR-CMake install paragraph. Add CI badges.
