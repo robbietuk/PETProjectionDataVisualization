@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
 import numpy as np
+import numpy.typing as npt
 
 
 @dataclass(frozen=True)
@@ -87,7 +88,7 @@ class ProjDataSource(Protocol):
 
     info: ProjDataInfo
 
-    def get_segment(self, segment: int, tof_bin: int) -> np.ndarray:
+    def get_segment(self, segment: int, tof_bin: int) -> npt.NDArray[np.float32]:
         """Return one segment for one TOF bin as float32, shape ``(views, axial, tangential)``.
 
         Index 0 along each axis corresponds to the ``min_*`` value in ``info``.

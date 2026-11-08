@@ -8,9 +8,10 @@ Nothing above this layer ever sees a ``stir`` object.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import numpy as np
+import numpy.typing as npt
 
 
 class StirNotFoundError(ImportError):
@@ -44,11 +45,11 @@ class StirProjDataHandle(Protocol):
         """Best-effort descriptive (label, value) pairs; may be empty."""
         ...
 
-    def read_segment(self, segment: int, tof_bin: int) -> np.ndarray:
+    def read_segment(self, segment: int, tof_bin: int) -> npt.NDArray[np.float32]:
         """float32 array of shape (views, axial, tangential); must be validated by the implementation."""
         ...
 
-    def read_sinogram(self, segment: int, axial: int, tof_bin: int) -> np.ndarray:
+    def read_sinogram(self, segment: int, axial: int, tof_bin: int) -> npt.NDArray[np.float32]:
         """float32 array of shape (views, tangential): one sinogram, much cheaper than a segment."""
         ...
 
@@ -59,6 +60,6 @@ class StirGateway(Protocol):
         """Read a projection data file. Raises ``OSError`` if STIR cannot read it."""
         ...
 
-    def wrap(self, projdata: Any) -> StirProjDataHandle:
-        """Wrap an already-loaded ``stir.ProjData`` object."""
+    def wrap(self, projdata: object) -> StirProjDataHandle:
+        """Wrap an already-loaded ``stir.ProjData`` object (opaque at this level: no STIR types here)."""
         ...

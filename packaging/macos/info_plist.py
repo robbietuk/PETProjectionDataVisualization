@@ -10,17 +10,17 @@ NPY = f"{BUNDLE_ID}.numpy-npy"
 NPZ = f"{BUNDLE_ID}.numpy-npz"
 
 
-def _doc_type(name: str, uti: str, exts: list[str], rank: str) -> dict:
+def _doc_type(name: str, uti: str, exts: list[str], rank: str) -> dict[str, object]:
     return {"CFBundleTypeName": name, "CFBundleTypeRole": "Viewer", "LSHandlerRank": rank,
             "LSItemContentTypes": [uti], "CFBundleTypeExtensions": exts}
 
 
-def _imported_uti(uti: str, description: str, exts: list[str], conforms: list[str]) -> dict:
+def _imported_uti(uti: str, description: str, exts: list[str], conforms: list[str]) -> dict[str, object]:
     return {"UTTypeIdentifier": uti, "UTTypeDescription": description, "UTTypeConformsTo": conforms,
             "UTTypeTagSpecification": {"public.filename-extension": exts}}
 
 
-def info_plist(version: str) -> dict:
+def info_plist(version: str) -> dict[str, object]:
     return {
         "CFBundleName": NAME,
         "CFBundleDisplayName": "PET Projection Data Visualization",

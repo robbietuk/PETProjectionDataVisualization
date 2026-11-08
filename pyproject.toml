@@ -73,6 +73,7 @@ include = [
     "/tests/",
     "/scripts/",
     "/packaging/",
+    "/typings/",          # type stubs used by the type check ([tool.pyrefly])
     "/README.md",
     "/CHANGELOG.md",
     "/CONTRIBUTING.md",
@@ -82,7 +83,38 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pet_projection_data_visualization"]
+# the stub only stands in for _version.py in a checkout that has none; the wheel always has the real (typed)
+# _version.py, and a shipped stub would hide its other names (version_tuple, commit_id, ...) from type checkers
+exclude = ["/src/pet_projection_data_visualization/_version.pyi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
+
+[tool.pyrefly]
+# Strict static type checking with Pyrefly, run by pre-commit (see CONTRIBUTING.md, "Type checking").
+# The tests are not checked: they assert on optional view-model state and monkeypatch fakes on purpose.
+project-includes = ["src", "scripts", "packaging", "typings"]
+# typings/ holds partial stubs for pyqtgraph, which ships no type information (it shadows the real package)
+search-path = ["src", "typings"]
+python-version = "3.11"
+# not installed where the check runs: the SWIG module (only packaging/ imports it statically) and py-rattler
+ignore-missing-imports = ["stir", "rattler"]
+# on top of the default checks: implicit Any of every kind (unannotated parameters, bare generics, untyped
+# lambdas, ...), @override on overriding methods, unused suppressions, strict callable subtyping
+preset = "strict"
+infer-with-first-use = false        # an empty container needs an annotation; no guessing from its first use
+
+[tool.pyrefly.errors]
+unannotated-return = "error"        # every function declares its return type
+explicit-any = "error"              # no `Any` in annotations (one alias for the SWIG boundary: swig_gateway.py)
+no-any-return = "error"             # a typed function may not return an `Any`
+redundant-cast = "error"
+unknown-argument-type = "error"     # an implicit `Any` may not flow into calls, attributes, variables, returns
+unknown-attribute-access = "error"
+unknown-attribute-type = "error"
+unknown-return-type = "error"
+unknown-variable-type = "error"
+# `bool(x)` / `int(x)` on values typed as bool/int are kept on purpose: at run time they come from Qt signals,
+# numpy scalars or callers that pass other number types
+unnecessary-type-conversion = "ignore"

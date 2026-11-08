@@ -31,9 +31,9 @@ NAME = "PETProjectionDataVisualization"
 CODESIGN = "/usr/bin/codesign"
 
 
-def run(*cmd: str | os.PathLike, **kw) -> None:
+def run(*cmd: str | os.PathLike[str], env: dict[str, str] | None = None) -> None:
     print("+", " ".join(map(str, cmd)), flush=True)
-    subprocess.run([str(c) for c in cmd], check=True, **kw)
+    subprocess.run([str(c) for c in cmd], check=True, env=env)
 
 
 def freeze(dist: Path, work: Path) -> Path:

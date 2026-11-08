@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import ctypes
 import sys
+from typing import Final
 
-EXTRA_REFERENCES = 1 << 40
-SINGLETONS = (None, True, False)
+EXTRA_REFERENCES: Final = 1 << 40
+SINGLETONS: Final = (None, True, False)
 
 
-def needs_guard(version_info: tuple = tuple(sys.version_info),
+def needs_guard(version_info: tuple[int | str, ...] = tuple(sys.version_info),
                 implementation: str = sys.implementation.name) -> bool:
     """True for CPython before 3.12, where ``None``, ``True`` and ``False`` are not immortal."""
     return implementation == "cpython" and tuple(version_info[:2]) < (3, 12)

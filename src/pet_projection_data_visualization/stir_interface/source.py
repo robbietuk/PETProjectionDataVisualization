@@ -4,16 +4,15 @@
 from __future__ import annotations
 
 import os
-from typing import Any
-
 import numpy as np
+import numpy.typing as npt
 
 from ..model.info import ProjDataInfo
 from .gateway import StirGateway, StirProjDataHandle
 
 
 class StirProjDataSource:
-    def __init__(self, handle: StirProjDataHandle):
+    def __init__(self, handle: StirProjDataHandle) -> None:
         self._handle = handle
         lay = handle.layout()
         self.info = ProjDataInfo(
@@ -26,14 +25,14 @@ class StirProjDataSource:
             extra=dict(handle.metadata()),
         )
 
-    def get_segment(self, segment: int, tof_bin: int) -> np.ndarray:
+    def get_segment(self, segment: int, tof_bin: int) -> npt.NDArray[np.float32]:
         return self._handle.read_segment(segment, tof_bin)
 
-    def get_sinogram(self, segment: int, axial: int, tof_bin: int) -> np.ndarray:
+    def get_sinogram(self, segment: int, axial: int, tof_bin: int) -> npt.NDArray[np.float32]:
         return self._handle.read_sinogram(segment, axial, tof_bin)
 
 
-def open_stir_source(obj: Any, stir_path: str | None = None, gateway: StirGateway | None = None) -> StirProjDataSource:
+def open_stir_source(obj: object, stir_path: str | None = None, gateway: StirGateway | None = None) -> StirProjDataSource:
     """``obj`` is a filename or a ``stir.ProjData``. ``gateway`` defaults to the real SWIG one."""
     if gateway is None:
         from .swig_gateway import SwigStirGateway  # imported here so the module can be loaded without stir

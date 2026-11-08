@@ -5,15 +5,17 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
 
 @dataclass(frozen=True)
 class SliceImage:
     """A 2D image plus what is needed to label axes and map pixels to bin indices."""
 
-    data: np.ndarray
+    data: npt.NDArray[np.float32]
     title: str
     row_axis: str
     col_axis: str
@@ -22,7 +24,7 @@ class SliceImage:
 
     @property
     def shape(self) -> tuple[int, int]:
-        return self.data.shape  # type: ignore[return-value]
+        return cast(tuple[int, int], self.data.shape)    # always a 2D image
 
     def value_at(self, row: int, col: int) -> float | None:
         if 0 <= row < self.data.shape[0] and 0 <= col < self.data.shape[1]:
@@ -48,7 +50,7 @@ class SliceStats:
     nonzero_fraction: float
 
 
-def compute_stats(data: np.ndarray) -> SliceStats:
+def compute_stats(data: npt.ArrayLike) -> SliceStats:
     """Statistics over the *finite* values (NaN/inf are ignored, not propagated)."""
     d = np.asarray(data, dtype=np.float64)
     if d.size == 0:
@@ -61,7 +63,7 @@ def compute_stats(data: np.ndarray) -> SliceStats:
                       float(finite.sum()), float(np.count_nonzero(finite)) / d.size)
 
 
-def finite_range(data: np.ndarray) -> tuple[float, float] | None:
+def finite_range(data: npt.ArrayLike) -> tuple[float, float] | None:
     """(min, max) over the finite values only, or None if there are none (NaN/inf are ignored)."""
     d = np.asarray(data)
     finite = d[np.isfinite(d)]

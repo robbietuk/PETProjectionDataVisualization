@@ -9,6 +9,7 @@ logic, no data access, no formatting; colours come from the active ``Palette``.
 from __future__ import annotations
 
 import contextlib
+from typing import Callable, Generator, ParamSpec, TypeVar, cast
 
 import numpy as np
 import pyqtgraph as pg
@@ -27,6 +28,9 @@ LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slic
                   "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
                   "log display. Typing a level or dragging the histogram locks at the new values.")
 
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
 
 def _colormap(name: str) -> pg.ColorMap:
     if name != "grey":
@@ -37,7 +41,7 @@ def _colormap(name: str) -> pg.ColorMap:
     return pg.ColorMap([0.0, 1.0], [(0, 0, 0), (255, 255, 255)])
 
 
-def _uses_key(widget, key) -> bool:
+def _uses_key(widget: QtWidgets.QWidget, key: QtCore.Qt.Key) -> bool:
     """Does ``widget`` (the focused one) have its own meaning for ``key``?"""
     Key = QtCore.Qt.Key
     text_entry = (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox, QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)
@@ -49,7 +53,7 @@ def _uses_key(widget, key) -> bool:
 
 
 @contextlib.contextmanager
-def _wait_cursor():
+def _wait_cursor() -> Generator[None, None, None]:
     QtWidgets.QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.CursorShape.WaitCursor))
     try:
         yield
@@ -60,12 +64,12 @@ def _wait_cursor():
 class ViewerWindow(QtWidgets.QMainWindow):
     PAGE_EMPTY, PAGE_VIEWER = 0, 1
 
-    def __init__(self, vm: ViewerViewModel, palette: Palette = DARK):
+    def __init__(self, vm: ViewerViewModel, palette: Palette = DARK) -> None:
         super().__init__()
         self.vm = vm
         self.palette_tokens = palette
         self.resize(1320, 840)
-        self._geometry_key: tuple | None = None
+        self._geometry_key: tuple[object, ...] | None = None
         self._applying_levels = False
         self._levels_from_histogram = False     # set while a histogram drag is handed to the view model
         self._painted_levels: tuple[float, float] | None = None
@@ -100,7 +104,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.act_light = view_menu.addAction("&Light theme")
         self.act_light.setCheckable(True)
         self.act_light.setChecked(self.palette_tokens.name == "light")
-        self.act_light.toggled.connect(lambda on: self.set_palette(LIGHT if on else DARK))
+        self.act_light.toggled.connect(self._on_light_toggled)
 
     def _build_layout(self) -> None:
         root = QtWidgets.QWidget()
@@ -154,7 +158,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
         self.slice_card = ui.Card("Slice")
         self.mode_control = ui.SegmentedControl(SLICE_MODE_OPTIONS)
-        self.mode_control.choiceChanged.connect(lambda m: self._run(self.vm.set_slice_mode, m))
+        self.mode_control.choiceChanged.connect(self._slot(lambda: self.vm.set_slice_mode))
         self.slice_card.body.addWidget(self.mode_control)
         self.dim_controls: dict[str, ui.DimensionControl] = {}
         for dim in ("segment", "axial", "view", "tangential"):
@@ -163,17 +167,17 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
         self.tof_box = ui.Card("Time of flight")
         self.tof_mode_control = ui.SegmentedControl(TOF_MODE_OPTIONS)
-        self.tof_mode_control.choiceChanged.connect(lambda m: self._run(self.vm.set_tof_mode, m))
+        self.tof_mode_control.choiceChanged.connect(self._slot(lambda: self.vm.set_tof_mode))
         self.tof_box.body.addWidget(self.tof_mode_control)
         self.dim_controls["tof"] = self._dimension_control("tof", self.tof_box)
         play = QtWidgets.QHBoxLayout()
         self.play_button = QtWidgets.QPushButton("Play  (Space)")
         self.play_button.setCheckable(True)
-        self.play_button.toggled.connect(lambda on: self._run(self.vm.set_playing, on))
+        self.play_button.toggled.connect(self._slot(lambda: self.vm.set_playing))
         self.fps_spin = QtWidgets.QSpinBox()
         self.fps_spin.setRange(1, 30)
         self.fps_spin.setSuffix(" fps")
-        self.fps_spin.valueChanged.connect(lambda v: self._run(self.vm.set_fps, v))
+        self.fps_spin.valueChanged.connect(self._slot(lambda: self.vm.set_fps))
         play.addWidget(self.play_button, 1)
         play.addWidget(self.fps_spin)
         self.tof_box.body.addLayout(play)
@@ -181,11 +185,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
         display = self.display_card = ui.Card("Display")
         self.cmap_control = ui.ChoiceCombo(COLORMAP_OPTIONS)
-        self.cmap_control.choiceChanged.connect(lambda name: self._run(self.vm.set_colormap, name))
+        self.cmap_control.choiceChanged.connect(self._slot(lambda: self.vm.set_colormap))
         self.level_control = ui.SegmentedControl(LEVEL_MODE_OPTIONS)      # Adaptive | Locked
         self.level_control.setAccessibleName("Colour levels: adaptive or locked")
         self.level_control.setToolTip(LEVEL_LOCK_TIP)
-        self.level_control.choiceChanged.connect(lambda m: self._run(self.vm.set_level_mode, m))
+        self.level_control.choiceChanged.connect(self._slot(lambda: self.vm.set_level_mode))
         self.global_button = QtWidgets.QPushButton("Lock to global range")
         self.global_button.setAccessibleName("Lock colour levels to the global range of the data set")
         self.global_button.setToolTip("Lock Min/Max at the range of the whole data set in the current TOF mode "
@@ -198,11 +202,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
         for key, label in (("low", "Min level"), ("high", "Max level")):
             edit = ui.NumberEdit()                   # any magnitude, e.g. 1e-8; commits on Enter/focus-out
             edit.setFixedWidth(130)
-            edit.valueEdited.connect(lambda v, k=key: self._run(self.vm.set_level_bounds, **{k: v}))
+            edit.valueEdited.connect(self._level_bound_slot(key))
             self.level_edits[key] = edit
             display.body.addWidget(ui.LabeledRow(label, edit))
         self.log_switch = QtWidgets.QCheckBox("log(1 + x) display")
-        self.log_switch.toggled.connect(lambda on: self._run(self.vm.set_log_display, on))
+        self.log_switch.toggled.connect(self._slot(lambda: self.vm.set_log_display))
         display.body.addWidget(self.log_switch)
         col.addWidget(display)
 
@@ -220,7 +224,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     def _dimension_control(self, dim: str, card: ui.Card) -> ui.DimensionControl:
         ctrl = ui.DimensionControl()
-        ctrl.userChanged.connect(lambda v, d=dim: self._run(self.vm.set_value, d, v))
+
+        def on_change(value: int) -> None:
+            self._run(self.vm.set_value, dim, value)
+        ctrl.userChanged.connect(on_change)
         card.body.addWidget(ctrl)
         return ctrl
 
@@ -281,7 +288,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         is passed on to that widget instead of running the shortcut: Right on a focused segment slider
         moves the segment, not the axial position."""
         Key = QtCore.Qt.Key
-        self._shortcut_commands = {
+        self._shortcut_commands: dict[QtCore.Qt.Key, Callable[[], None]] = {
             Key.Key_Space: lambda: self._run(self.vm.toggle_play),
             Key.Key_Left: lambda: self._run(self.vm.step_active, -1),
             Key.Key_Right: lambda: self._run(self.vm.step_active, +1),
@@ -289,13 +296,13 @@ class ViewerWindow(QtWidgets.QMainWindow):
             Key.Key_PageDown: lambda: self._run(self.vm.step, "segment", -1),
             Key.Key_L: lambda: self._run(self.vm.toggle_level_lock),
         }
-        self._shortcuts = {}
+        self._shortcuts: dict[QtCore.Qt.Key, QtGui.QShortcut] = {}
         for key in self._shortcut_commands:
             sc = QtGui.QShortcut(QtGui.QKeySequence(key), self)
             sc.activated.connect(lambda k=key: self._on_shortcut(k))
             self._shortcuts[key] = sc
 
-    def _on_shortcut(self, key) -> None:
+    def _on_shortcut(self, key: QtCore.Qt.Key) -> None:
         focus = self.focusWidget()       # this window's focus child (also right when the window is not active)
         if focus is not None and _uses_key(focus, key):
             sc = self._shortcuts[key]
@@ -314,7 +321,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------ theming
     def set_palette(self, palette: Palette) -> None:
         self.palette_tokens = palette
-        apply_theme(QtWidgets.QApplication.instance(), palette)
+        # the window exists, so the GUI application does too
+        apply_theme(cast(QtWidgets.QApplication, QtWidgets.QApplication.instance()), palette)
         self._restyle_plots()
 
     def _restyle_plots(self) -> None:
@@ -330,9 +338,21 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.tof_marker_line.setPen(pg.mkPen(p.marker, width=2))
 
     # ------------------------------------------------------------------ user input -> commands
-    def _run(self, command, *args, **kwargs) -> None:
+    def _run(self, command: Callable[_P, object], *args: _P.args, **kwargs: _P.kwargs) -> None:
         with _wait_cursor():
             command(*args, **kwargs)
+
+    def _slot(self, command: Callable[[], Callable[[_T], object]]) -> Callable[[_T], None]:
+        """A slot for a one-argument signal: runs ``command()(value)`` like every other user command.
+        ``command`` returns the view-model method, so it is looked up on every signal, not once."""
+        return lambda value: self._run(command(), value)
+
+    def _level_bound_slot(self, key: str) -> Callable[[float], None]:
+        """A slot for one level box: ``key`` is ``low`` or ``high`` (the keyword of ``set_level_bounds``)."""
+        return lambda value: self._run(self.vm.set_level_bounds, **{key: value})
+
+    def _on_light_toggled(self, on: bool) -> None:
+        self.set_palette(LIGHT if on else DARK)
 
     def _open_file(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -367,7 +387,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
             finally:
                 self._levels_from_histogram = False
 
-    def _on_mouse_moved(self, scene_pos) -> None:
+    def _on_mouse_moved(self, scene_pos: QtCore.QPointF) -> None:
         vb = self.plot.vb
         if vb.sceneBoundingRect().contains(scene_pos):
             p = vb.mapSceneToView(scene_pos)

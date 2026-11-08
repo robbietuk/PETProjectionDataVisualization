@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Generic, Hashable, Sequence, TypeVar
+from typing import Final, Generic, Hashable, Mapping, Sequence, TypeVar
 
 from ..model import SliceMode, TofMode
 
 T = TypeVar("T", bound=Hashable)
+E = TypeVar("E", bound=Enum)
 
-COLORMAPS = ("viridis", "inferno", "magma", "plasma", "cividis", "grey")
+COLORMAPS: Final = ("viridis", "inferno", "magma", "plasma", "cividis", "grey")
 
 
 class LevelMode(Enum):
@@ -32,8 +33,8 @@ class LevelMode(Enum):
 class ChoiceOptions(Generic[T]):
     """An ordered, immutable set of ``(value, label)`` choices."""
 
-    values: tuple
-    labels: tuple
+    values: tuple[T, ...]
+    labels: tuple[str, ...]
 
     def __post_init__(self) -> None:
         if len(self.values) != len(self.labels):
@@ -44,30 +45,30 @@ class ChoiceOptions(Generic[T]):
             raise ValueError("choice values must be unique")
 
     @classmethod
-    def from_enum(cls, enum_type: type[Enum], labels: dict | None = None) -> "ChoiceOptions":
+    def from_enum(cls, enum_type: type[E], labels: Mapping[E, str] | None = None) -> ChoiceOptions[E]:
         members = tuple(enum_type)
         return cls(members, tuple((labels or {}).get(m, m.value) for m in members))
 
     @classmethod
-    def from_values(cls, values: Sequence, labels: Sequence[str] | None = None) -> "ChoiceOptions":
-        values = tuple(values)
-        return cls(values, tuple(labels) if labels is not None else tuple(str(v) for v in values))
+    def from_values(cls, values: Sequence[T], labels: Sequence[str] | None = None) -> ChoiceOptions[T]:
+        items = tuple(values)
+        return cls(items, tuple(labels) if labels is not None else tuple(str(v) for v in items))
 
     def __len__(self) -> int:
         return len(self.values)
 
-    def index_of(self, value) -> int:
+    def index_of(self, value: T) -> int:
         try:
             return self.values.index(value)
         except ValueError:
             raise KeyError(f"{value!r} is not one of {self.values}") from None
 
-    def value_at(self, index: int):
+    def value_at(self, index: int) -> T:
         if not 0 <= index < len(self.values):
             raise IndexError(f"choice index {index} out of range 0..{len(self.values) - 1}")
         return self.values[index]
 
-    def label_of(self, value) -> str:
+    def label_of(self, value: T) -> str:
         return self.labels[self.index_of(value)]
 
 

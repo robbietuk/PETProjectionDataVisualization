@@ -3,11 +3,13 @@
 """Source backed by numpy arrays and ``.npy``/``.npz`` files (no STIR needed)."""
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Mapping
 
 import numpy as np
+import numpy.typing as npt
 
 from ..model.info import ProjDataInfo
 
@@ -32,11 +34,11 @@ class ArraySource:
     views, tangential positions and number of TOF bins.
     """
 
-    def __init__(self, segments: Mapping[int, np.ndarray], name: str = "array data",
-                 extra: dict[str, str] | None = None):
+    def __init__(self, segments: Mapping[int, npt.ArrayLike], name: str = "array data",
+                 extra: dict[str, str] | None = None) -> None:
         if not segments:
             raise ValueError("need at least one segment")
-        self._data: dict[int, np.ndarray] = {}
+        self._data: dict[int, npt.NDArray[np.float32]] = {}
         for seg, arr in segments.items():
             arr = np.asarray(arr, dtype=np.float32)
             if arr.ndim == 3:
@@ -53,7 +55,7 @@ class ArraySource:
                 raise ValueError(
                     f"segment {seg} has shape {a.shape}, inconsistent with segment {keys[0]} {ref.shape} "
                     "(TOF bins, views and tangential positions must match)")
-        n_tof, n_view, _, n_tang = ref.shape
+        n_tof, n_view, _, n_tang = (int(n) for n in ref.shape)
         self.info = ProjDataInfo(
             name=name,
             min_segment=keys[0], max_segment=keys[-1],
@@ -67,18 +69,19 @@ class ArraySource:
         if keys != list(range(keys[0], keys[-1] + 1)):
             raise ValueError(f"segment numbers must be contiguous, got {keys}")
 
-    def get_segment(self, segment: int, tof_bin: int) -> np.ndarray:
+    def get_segment(self, segment: int, tof_bin: int) -> npt.NDArray[np.float32]:
         arr = self._data[segment]
-        return arr[tof_bin - self.info.min_tof]
+        return arr[tof_bin - self.info.min_tof, ...]
 
-    def get_sinogram(self, segment: int, axial: int, tof_bin: int) -> np.ndarray:
+    def get_sinogram(self, segment: int, axial: int, tof_bin: int) -> npt.NDArray[np.float32]:
         a_lo, _ = self.info.axial_range(segment)
         return self._data[segment][tof_bin - self.info.min_tof, :, axial - a_lo, :]
 
     # ---- STIR's own numpy export --------------------------------------------
     @classmethod
-    def from_stir_as_array(cls, data: np.ndarray, axial_counts, segment_numbers=None,
-                           name: str = "array data", extra: dict[str, str] | None = None) -> "ArraySource":
+    def from_stir_as_array(cls, data: npt.ArrayLike, axial_counts: npt.ArrayLike,
+                           segment_numbers: npt.ArrayLike | None = None,
+                           name: str = "array data", extra: dict[str, str] | None = None) -> ArraySource:
         """Split the array returned by STIR's ``ProjData.as_array()`` into segments.
 
         That array is ``(tof, sinograms, views, tangential)`` (3D without the TOF axis in old STIR
@@ -87,11 +90,11 @@ class ArraySource:
         ``axial_counts`` gives the number of axial positions of each segment in that same order;
         ``segment_numbers`` overrides the order (needed only for non-symmetric segment ranges).
         """
-        data = np.asarray(data, dtype=np.float32)
-        if data.ndim == 3:
-            data = data[np.newaxis]
-        if data.ndim != 4:
-            raise ValueError(f"STIR as_array data must be 3D or 4D, got {data.ndim}D")
+        arr = np.asarray(data, dtype=np.float32)
+        if arr.ndim == 3:
+            arr = arr[np.newaxis]
+        if arr.ndim != 4:
+            raise ValueError(f"STIR as_array data must be 3D or 4D, got {arr.ndim}D")
         counts = [int(c) for c in np.atleast_1d(axial_counts)]
         if any(c < 1 for c in counts):
             raise ValueError(f"axial counts must be positive, got {counts}")
@@ -99,19 +102,20 @@ class ArraySource:
                 else [int(s) for s in np.atleast_1d(segment_numbers)])
         if len(segs) != len(counts):
             raise ValueError(f"{len(segs)} segment numbers but {len(counts)} axial counts")
-        if sum(counts) != data.shape[1]:
+        if sum(counts) != arr.shape[1]:
             raise ValueError(f"axial counts add up to {sum(counts)} sinograms, but the array has "
-                             f"{data.shape[1]} (shape {data.shape}: expected (tof, sinograms, views, tangential))")
-        segments, start = {}, 0
+                             f"{arr.shape[1]} (shape {arr.shape}: expected (tof, sinograms, views, tangential))")
+        segments: dict[int, npt.NDArray[np.float32]] = {}
+        start = 0
         for seg, n in zip(segs, counts):
             # (tof, axial, view, tang) -> (tof, view, axial, tang)
-            segments[seg] = data[:, start:start + n].transpose(0, 2, 1, 3)
+            segments[seg] = arr[:, start:start + n].transpose(0, 2, 1, 3)
             start += n
         return cls(segments, name=name, extra=extra)
 
     # ---- file loading -------------------------------------------------
     @classmethod
-    def from_file(cls, path: str | Path) -> "ArraySource":
+    def from_file(cls, path: str | os.PathLike[str]) -> ArraySource:
         """Load ``.npy`` (one segment, 3D or 4D) or ``.npz`` (keys ``segment_<n>``)."""
         path = Path(path)
         suffix = path.suffix.lower()
@@ -131,7 +135,7 @@ class ArraySource:
                         z["as_array"], z["axial_counts"],
                         z["segment_numbers"] if "segment_numbers" in z.files else None,
                         name=path.name, extra={"format": "numpy .npz (STIR ProjData.as_array layout)"})
-                segs = {}
+                segs: dict[int, npt.NDArray[np.generic]] = {}
                 for key in z.files:
                     m = re.fullmatch(r"segment_(-?\d+)", key)
                     if not m:

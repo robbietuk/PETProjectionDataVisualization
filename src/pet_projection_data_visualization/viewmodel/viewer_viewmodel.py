@@ -11,11 +11,13 @@ from __future__ import annotations
 import functools
 import os
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Callable, Concatenate, ParamSpec, TypeVar
 
 import numpy as np
+import numpy.typing as npt
 
-from ..model import ProjDataset, ProjDataSource, Selection, SliceImage, SliceMode, TofMode, finite_range
+from ..model import (ProjDataset, ProjDataSource, Selection, SliceImage, SliceMode, SliceStats, TofMode,
+                     finite_range)
 from ..model.selection import DIMENSIONS
 from . import formatting
 from .observable import Observed, ObservableObject
@@ -31,7 +33,11 @@ DIM_LABELS = {
 MIN_FPS, MAX_FPS = 1, 30
 DEFAULT_STATUS = "Open a file, or use File > Demo data"
 
-SourceFactory = Callable[[Any], ProjDataSource]
+# what ``load`` accepts: a path, a ``stir.ProjData`` or a ``ProjDataSource``; only the factory looks inside
+SourceFactory = Callable[[object], ProjDataSource]
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 @dataclass(frozen=True)
@@ -49,7 +55,7 @@ class DimensionState:
 class DisplayImage:
     """A ready-to-draw image: values (log-transformed if requested) and its rectangle in axis
     coordinates, where integer positions are pixel centres."""
-    data: np.ndarray
+    data: npt.NDArray[np.float32]
     x0: float
     y0: float
     width: float
@@ -69,9 +75,9 @@ class TofProfile:
 @dataclass(frozen=True)
 class _Rendered:
     image: SliceImage
-    display: np.ndarray
+    display: npt.NDArray[np.float32]
     levels: tuple[float, float]
-    stats: Any
+    stats: SliceStats
 
 
 @dataclass(frozen=True)
@@ -106,10 +112,10 @@ def _min_span(value: float) -> float:
     return max(abs(value) * 1e-6, float(np.finfo(np.float32).tiny))
 
 
-def _command(fn):
+def _command(fn: Callable[Concatenate[ViewerViewModel, _P], _R]) -> Callable[Concatenate[ViewerViewModel, _P], _R]:
     """Run a view-model method as one transaction: subscribers are notified once at the end."""
     @functools.wraps(fn)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: ViewerViewModel, *args: _P.args, **kwargs: _P.kwargs) -> _R:
         with self.transaction():
             return fn(self, *args, **kwargs)
     return wrapper
@@ -117,32 +123,32 @@ def _command(fn):
 
 class ViewerViewModel(ObservableObject):
     # ---- observable state (read-only for the view) --------------------------------
-    loaded = Observed(False)
-    window_title = Observed("STIR projection data viewer")
-    source_label = Observed("")            # name of the loaded data set (file name for files)
-    source_path = Observed("")             # path of the loaded file, "" for in-memory or demo data
-    status = Observed(DEFAULT_STATUS)
-    error = Observed(None)                 # last error message; re-notified on every failure
-    dimensions = Observed(())              # tuple[DimensionState, ...]
-    slice_mode = Observed(SliceMode.SINOGRAM)
-    tof_mode = Observed(TofMode.BIN)
-    tof_available = Observed(False)
-    can_play = Observed(False)
-    playing = Observed(False)
-    fps = Observed(4)
-    tof_marker = Observed(None)            # TOF bin to mark in the profile plot, or None
-    colormap = Observed(COLORMAPS[0])
-    level_mode = Observed(LevelMode.ADAPTIVE)  # LOCKED: ``levels`` stay constant while navigating
-    log_display = Observed(False)
-    image = Observed(None)                 # DisplayImage | None
-    levels = Observed(None)                # (lo, hi) | None
-    info_text = Observed("")
-    pixel_text = Observed("")
-    tof_profile = Observed(None)           # TofProfile | None
-    metrics = Observed(())                 # tuple[(label, value), ...] for the current slice
-    context = Observed(())                 # tuple[str, ...] chips describing the current selection
+    loaded: Observed[bool] = Observed(False)
+    window_title: Observed[str] = Observed("STIR projection data viewer")
+    source_label: Observed[str] = Observed("")       # name of the loaded data set (file name for files)
+    source_path: Observed[str] = Observed("")        # path of the loaded file, "" for in-memory or demo data
+    status: Observed[str] = Observed(DEFAULT_STATUS)
+    error: Observed[str | None] = Observed(None)     # last error message; re-notified on every failure
+    dimensions: Observed[tuple[DimensionState, ...]] = Observed(())
+    slice_mode: Observed[SliceMode] = Observed(SliceMode.SINOGRAM)
+    tof_mode: Observed[TofMode] = Observed(TofMode.BIN)
+    tof_available: Observed[bool] = Observed(False)
+    can_play: Observed[bool] = Observed(False)
+    playing: Observed[bool] = Observed(False)
+    fps: Observed[int] = Observed(4)
+    tof_marker: Observed[int | None] = Observed(None)   # TOF bin to mark in the profile plot, or None
+    colormap: Observed[str] = Observed(COLORMAPS[0])
+    level_mode: Observed[LevelMode] = Observed(LevelMode.ADAPTIVE)  # LOCKED: ``levels`` stay constant while navigating
+    log_display: Observed[bool] = Observed(False)
+    image: Observed[DisplayImage | None] = Observed(None)
+    levels: Observed[tuple[float, float] | None] = Observed(None)   # (lo, hi)
+    info_text: Observed[str] = Observed("")
+    pixel_text: Observed[str] = Observed("")
+    tof_profile: Observed[TofProfile | None] = Observed(None)
+    metrics: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) for the current slice
+    context: Observed[tuple[str, ...]] = Observed(())   # chips describing the current selection
 
-    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None):
+    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None) -> None:
         super().__init__()
         self._factory = source_factory
         self._demo_factory = demo_factory
@@ -167,7 +173,7 @@ class ViewerViewModel(ObservableObject):
 
     # ---- commands --------------------------------------------------------------------
     @_command
-    def load(self, obj: Any) -> bool:
+    def load(self, obj: object) -> bool:
         """Load a path, ``stir.ProjData`` or ``ProjDataSource`` through the injected factory.
         On failure the previous data stays, ``error`` is set and False is returned."""
         try:
@@ -226,28 +232,33 @@ class ViewerViewModel(ObservableObject):
 
     @_command
     def set_value(self, dim: str, value: int) -> None:
-        if self._ready():
-            self._show(self._selection.with_value(self._dataset.info, dim, value))
+        if (current := self._current()) is not None:
+            dataset, sel = current
+            self._show(sel.with_value(dataset.info, dim, value))
 
     @_command
     def step(self, dim: str, delta: int) -> None:
-        if self._ready():
-            self.set_value(dim, self._selection.get(dim) + delta)
+        if (current := self._current()) is not None:
+            _, sel = current
+            self.set_value(dim, sel.get(dim) + delta)
 
     @_command
     def step_active(self, delta: int) -> None:
-        if self._ready():
-            self.step(self._selection.active_dimension, delta)
+        if (current := self._current()) is not None:
+            _, sel = current
+            self.step(sel.active_dimension, delta)
 
     @_command
     def set_slice_mode(self, mode: SliceMode) -> None:
-        if self._ready():
-            self._show(self._selection.with_slice_mode(mode))
+        if (current := self._current()) is not None:
+            _, sel = current
+            self._show(sel.with_slice_mode(mode))
 
     @_command
     def set_tof_mode(self, mode: TofMode) -> None:
-        if self._ready():
-            self._show(self._selection.with_tof_mode(mode))
+        if (current := self._current()) is not None:
+            _, sel = current
+            self._show(sel.with_tof_mode(mode))
 
     @_command
     def set_playing(self, playing: bool) -> None:
@@ -265,12 +276,14 @@ class ViewerViewModel(ObservableObject):
     def tick(self) -> None:
         """One playback step; the view calls this from its timer. Ignored unless ``playing``,
         so a stale timer event after pause/error/collapse does nothing."""
-        if not self._ready() or not self.playing:
+        current = self._current()
+        if current is None or not self.playing:
             return
         if not self.can_play:
             self.playing = False
             return
-        self._show(self._selection.step_tof(self._dataset.info, 1))
+        dataset, sel = current
+        self._show(sel.step_tof(dataset.info, 1))
 
     @_command
     def set_colormap(self, name: str) -> None:
@@ -287,7 +300,8 @@ class ViewerViewModel(ObservableObject):
         if not self._ready() or mode is self.level_mode:
             return
         if mode is LevelMode.LOCKED:
-            self._lock_at(_LevelLock(*self.levels, self.log_display))
+            lo, hi = self._shown_levels()
+            self._lock_at(_LevelLock(lo, hi, self.log_display))
         else:
             self._apply_lock(None)
 
@@ -300,10 +314,12 @@ class ViewerViewModel(ObservableObject):
     def lock_global_range(self) -> None:
         """Lock the levels at the range of the whole data set as displayed in the current TOF mode
         (every segment and, for single bins, every TOF bin). Reads everything once; on failure nothing changes."""
-        if not self._ready():
+        current = self._current()
+        if current is None:
             return
+        dataset, sel = current
         try:
-            lo, hi = self._dataset.global_range(self._selection)
+            lo, hi = dataset.global_range(sel)
         except Exception as exc:  # noqa: BLE001 - keep the current levels, tell the user why
             self._report_error(f"Could not compute the global range: {exc}")
             self._mark_changed("level_mode", "levels")       # snap the widgets back
@@ -318,7 +334,7 @@ class ViewerViewModel(ObservableObject):
         through the same transform as the pixels (see ``_LevelLock``)."""
         old = self.log_display
         self.log_display = bool(enabled)
-        if self._ready() and not self._show(self._selection):
+        if (current := self._current()) is not None and not self._show(current[1]):
             self.log_display = old
 
     @_command
@@ -356,19 +372,39 @@ class ViewerViewModel(ObservableObject):
         self.pixel_text = ""
 
     def _hover(self, x: float, y: float) -> None:
-        row, col = self._slice.pixel_from_axes(x, y)
-        value = self._slice.value_at(row, col)
+        image, (dataset, _) = self._slice, self._loaded()
+        assert image is not None, "a slice is shown whenever data is loaded"
+        row, col = image.pixel_from_axes(x, y)
+        value = image.value_at(row, col)
         if value is None:
             self.pixel_text = ""
             return
-        self.pixel_text = formatting.format_pixel(self._slice, row, col, value)
-        if self._dataset.info.is_tof and (row, col) != self._last_pixel:
+        self.pixel_text = formatting.format_pixel(image, row, col, value)
+        if dataset.info.is_tof and (row, col) != self._last_pixel:
             self._last_pixel = (row, col)
-            self._update_tof_profile(self._slice.indices_at(row, col))
+            self._update_tof_profile(image.indices_at(row, col))
 
     # ---- internals ---------------------------------------------------------------------
     def _ready(self) -> bool:
-        return self._dataset is not None and self._selection is not None
+        return self._current() is not None
+
+    def _current(self) -> tuple[ProjDataset, Selection] | None:
+        """The loaded data set and the current selection, or None before the first successful load."""
+        if self._dataset is None or self._selection is None:
+            return None
+        return self._dataset, self._selection
+
+    def _loaded(self) -> tuple[ProjDataset, Selection]:
+        """``_current()`` for the internals that only run once data is loaded."""
+        current = self._current()
+        assert current is not None, "no data loaded"
+        return current
+
+    def _shown_levels(self) -> tuple[float, float]:
+        """The levels on screen; there always are some once data is loaded."""
+        levels = self.levels
+        assert levels is not None, "no data loaded"
+        return levels
 
     def _report_error(self, message: str) -> None:
         self.error = message
@@ -377,7 +413,7 @@ class ViewerViewModel(ObservableObject):
 
     def _lock_at(self, lock: _LevelLock) -> None:
         if self._apply_lock(lock):
-            lo, hi = self.levels
+            lo, hi = self._shown_levels()
             self.status = f"Colour levels locked at {formatting.format_number(lo)} .. {formatting.format_number(hi)}"
 
     def _apply_lock(self, lock: _LevelLock | None) -> bool:
@@ -385,7 +421,7 @@ class ViewerViewModel(ObservableObject):
         old = self._lock
         self._lock = lock
         self.level_mode = LevelMode.ADAPTIVE if lock is None else LevelMode.LOCKED
-        if self._show(self._selection):
+        if self._show(self._loaded()[1]):
             if lock is None:
                 self.status = "Colour levels follow each slice"
             return True
@@ -397,13 +433,14 @@ class ViewerViewModel(ObservableObject):
         """Display ``selection`` of the current data set. All or nothing: if the slice cannot be read the
         previous selection, picture and controls stay (the view is told to repaint the controls)."""
         try:
-            rendered = self._render(self._dataset, selection, self._lock)
+            dataset, _ = self._loaded()
+            rendered = self._render(dataset, selection, self._lock)
         except Exception as exc:  # noqa: BLE001 - keep the previous picture, tell the user why
             self.playing = False         # never keep playing into a stream of identical errors
             self._report_error(f"Could not read the slice: {exc}")
             self._mark_changed("dimensions", "slice_mode", "tof_mode", "level_mode", "log_display")  # snap back
             return False
-        self._commit(self._dataset, selection, rendered)
+        self._commit(dataset, selection, rendered)
         return True
 
     def _commit(self, dataset: ProjDataset, sel: Selection, rendered: "_Rendered") -> None:
@@ -436,16 +473,17 @@ class ViewerViewModel(ObservableObject):
             self.tof_profile = None
 
     def _refresh_dimensions(self) -> None:
-        sel, info = self._selection, self._dataset.info
+        dataset, sel = self._loaded()
+        info = dataset.info
         active = sel.active_dimension
-        states = []
+        states: list[DimensionState] = []
         for dim in DIMENSIONS:
             lo, hi = sel.range(info, dim)
             wanted = dim in ("segment", active) or (dim == "tof" and info.is_tof and sel.tof_mode is TofMode.BIN)
             states.append(DimensionState(dim, DIM_LABELS[dim], lo, hi, sel.get(dim), wanted and hi > lo))
         self.dimensions = tuple(states)
 
-    def _display_values(self, data: np.ndarray) -> np.ndarray:
+    def _display_values(self, data: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         if self.log_display:
             return np.log1p(np.clip(data, 0, None)).astype(np.float32)
         return np.ascontiguousarray(data, dtype=np.float32)
@@ -461,15 +499,15 @@ class ViewerViewModel(ObservableObject):
         return _Rendered(image, disp, (float(lo), float(hi)), dataset.stats(image))
 
     def _update_tof_profile(self, indices: dict[str, int]) -> None:
-        sel = self._selection
+        dataset, sel = self._loaded()
         lor = {d: sel.get(d) for d in ("view", "axial", "tangential")}
         lor.update(indices)
         try:
-            prof = self._dataset.tof_profile(sel.segment, lor["view"], lor["axial"], lor["tangential"])
+            prof = dataset.tof_profile(sel.segment, lor["view"], lor["axial"], lor["tangential"])
         except Exception as exc:  # noqa: BLE001
             self._report_error(f"TOF profile unavailable: {exc}")
             return
         self.tof_profile = TofProfile(
-            tuple(self._dataset.info.tof_bins), tuple(float(v) for v in prof),
+            tuple(dataset.info.tof_bins), tuple(float(v) for v in prof),
             formatting.format_profile_title(sel.segment, lor["view"], lor["axial"], lor["tangential"],
                                             float(prof.sum())))
