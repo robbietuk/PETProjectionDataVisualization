@@ -24,7 +24,8 @@ def test_help_works_without_qt(capsys):
 
 def test_theme_option():
     p = build_parser()
-    assert p.parse_args([]).theme == "dark" and p.parse_args(["--theme", "light"]).theme == "light"
+    assert p.parse_args([]).theme is None              # the theme of the last session (dark the first time)
+    assert p.parse_args(["--theme", "light"]).theme == "light"
     with pytest.raises(SystemExit):
         p.parse_args(["--theme", "neon"])
 

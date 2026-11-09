@@ -126,7 +126,8 @@ first thing to do on a machine with Qt is run `pytest`, then `pet-projection-dat
 
 ## 8. Planned: several data sets in one window, synced when they have the same shape
 
-Not implemented. Today one `ViewerViewModel` owns one `ProjDataset`; the model, view model and STIR adapter
+Not implemented. Today one `ViewerViewModel` owns one projection data pane (`ProjectionPaneViewModel`, shown by
+`view/pane.py`'s `ProjectionDataPane`, #36), which owns one `ProjDataset`; the model, view model and STIR adapter
 hold no global state, so the work is mostly above them and in the window.
 
 **Compatible = same geometry.** Two data sets can be synced if their `ProjDataInfo` agree on segment

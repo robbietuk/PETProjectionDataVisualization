@@ -126,7 +126,9 @@ QFrame#Card QLabel, QFrame#Sidebar QLabel {{ background: transparent; }}
 QLabel#CardTitle {{ color: {p.text_muted}; font-size: {FONT_SIZE_SMALL}px; font-weight: 600; }}
 QLabel#Muted {{ color: {p.text_muted}; }}
 QLabel#Title {{ font-size: {FONT_SIZE_TITLE}px; font-weight: 600; }}
-QLabel#PixelReadout {{ color: {p.text_muted}; font-family: {MONO_FAMILY}; }}
+QLabel#PixelReadout, QFrame#Card QLabel#PixelReadout {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
+    padding: 6px 8px; font-family: {MONO_FAMILY}; font-size: {FONT_SIZE - 1}px; }}
+QFrame#LevelPanel {{ background: transparent; border: none; }}
 QPlainTextEdit#Mono {{ font-family: {MONO_FAMILY}; font-size: {FONT_SIZE - 1}px; }}
 QLabel:disabled, QCheckBox:disabled, QMenu::item:disabled {{ color: {p.text_muted}; }}
 
@@ -163,10 +165,21 @@ QPushButton[segment="true"]:hover {{ color: {p.text}; background: {p.surface}; }
 QPushButton[segment="true"]:checked {{ background: {p.accent}; color: {p.on_accent}; }}
 QPushButton[segment="true"]:disabled {{ color: {p.border}; background: transparent; }}
 QFrame#Segmented {{ background: {p.raised}; border: 1px solid {p.border_subtle}; border-radius: {RADIUS_SMALL + 1}px; }}
+QPushButton[rail="true"] {{ padding: 10px 2px; font-size: {FONT_SIZE_SMALL + 1}px; }}
+QPushButton[align="left"] {{ text-align: left; padding: 4px 8px; }}
+QPushButton[compact="true"] {{ padding: 2px 8px; min-width: 12px; min-height: 16px; }}
+QPushButton[segment="true"][compact="true"] {{ padding: 2px 8px; min-height: 14px; }}
+QLabel#Peek {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
+    padding: 8px 10px; }}
+QLabel#Section {{ color: {p.text_muted}; font-size: {FONT_SIZE_SMALL}px; font-weight: 600; padding-top: 6px; }}
+QLabel#Key {{ font-family: {MONO_FAMILY}; font-size: {FONT_SIZE - 1}px; }}
+QLabel#StirState {{ font-weight: 600; }}
+QLabel#StirState[tone="missing"] {{ color: {p.danger}; }}
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
     background: {p.raised}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px; padding: 5px 8px;
     selection-background-color: {p.accent}; selection-color: {p.on_accent}; }}
+QSpinBox[compact="true"] {{ padding: 2px 6px; }}
 QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {{ border-color: {p.text_muted}; }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{ border-color: {p.accent}; }}
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {{ color: {p.text_muted}; background: {p.surface}; border-color: {p.border_subtle}; }}

@@ -12,6 +12,8 @@ see ``import_stir``:
 from __future__ import annotations
 
 import importlib
+import importlib.machinery
+import importlib.util
 import os
 import sys
 import warnings
@@ -93,6 +95,36 @@ def import_stir(extra_path: str | None = None) -> ModuleType:
             "                  sure the STIR shared libraries are on LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH.\n"
             f"  Original error: {exc}"
         ) from exc
+
+
+STIR_MISSING_HINT = ("Interfile (.hs) files need it: conda install -c conda-forge stir, or pass --stir-path "
+                     "<install prefix>/python")
+
+
+def probe_stir(extra_path: str | None = None) -> tuple[bool, str]:
+    """Can ``import_stir(extra_path)`` find ``stir``, and where? Looks for the module without importing it
+    (importing the compiled module is slow), so (True, ...) means found, loaded when a file needs it."""
+    loaded = sys.modules.get("stir")
+    if loaded is not None:
+        return True, f"STIR loaded from {_module_dir(loaded) or 'an unknown location'}"
+    path, origin = extra_path, "--stir-path"
+    if path is None and os.environ.get(ENV_VAR):
+        path, origin = os.environ[ENV_VAR], f"${ENV_VAR}"
+    if path:
+        path = os.path.abspath(os.path.expanduser(path))
+        if not os.path.isdir(path):
+            if extra_path is not None:
+                return False, f"STIR python path from {origin} does not exist: {path}"
+        elif importlib.machinery.PathFinder.find_spec("stir", [path]) is not None:
+            return True, f"STIR found in {path} ({origin}); loaded when a file needs it"
+    try:
+        spec = importlib.util.find_spec("stir")
+    except (ImportError, ValueError):
+        spec = None
+    if spec is None:
+        return False, f"STIR not found. {STIR_MISSING_HINT}"
+    where = os.path.dirname(spec.origin) if spec.origin else ", ".join(spec.submodule_search_locations or ())
+    return True, f"STIR found in {where or 'the Python environment'}; loaded when a file needs it"
 
 
 def _try(fn: Callable[[], _T]) -> _T | None:

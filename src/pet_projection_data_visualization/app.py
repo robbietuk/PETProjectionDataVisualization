@@ -11,18 +11,33 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from ._refcount_guard import protect_singletons
 from .sources import make_demo_source
 from .sources.loader import make_source
+from .stir_interface import probe_stir
 from .view._compat import override
 from .view.styling import apply_theme
 from .view.theme import DEFAULT_PALETTE, PALETTES
-from .view.window import ViewerWindow
+from .view.window import ViewerWindow, saved_theme
 from .viewmodel import ViewerViewModel
 
 
-def build(stir_path: str | None = None, theme: str = DEFAULT_PALETTE.name) -> tuple[ViewerViewModel, ViewerWindow]:
-    """Create the view model (with the real loader and demo data) and its window."""
+SETTINGS_ORGANISATION = "PETProjectionDataVisualization"
+SETTINGS_APPLICATION = "viewer"
+
+
+def open_settings() -> QtCore.QSettings:
+    """Where the viewer remembers its settings between sessions: an INI file in the user's configuration
+    folder (e.g. ``~/.config/PETProjectionDataVisualization/viewer.ini`` on Linux)."""
+    return QtCore.QSettings(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope,
+                            SETTINGS_ORGANISATION, SETTINGS_APPLICATION)
+
+
+def build(stir_path: str | None = None, theme: str = DEFAULT_PALETTE.name,
+          settings: QtCore.QSettings | None = None) -> tuple[ViewerViewModel, ViewerWindow]:
+    """Create the view model (with the real loader and demo data) and its window. With ``settings`` the
+    window restores the last session's settings and saves its own when it closes."""
     protect_singletons()   # also here for callers that build their own window (idempotent)
-    vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source)
-    return vm, ViewerWindow(vm, PALETTES[theme])
+    vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source,
+                         stir_probe=lambda: probe_stir(stir_path))
+    return vm, ViewerWindow(vm, PALETTES[theme], settings)
 
 
 class FileOpenHandler(QtCore.QObject):
@@ -78,18 +93,21 @@ def install_file_open_handler(app: QtWidgets.QApplication, vm: ViewerViewModel,
 
 
 def launch(projdata: object = None, stir_path: str | None = None, demo: bool = False,
-           theme: str = DEFAULT_PALETTE.name) -> int:
-    """Open the viewer. ``projdata`` may be a path, a ``stir.ProjData`` or a ``ProjDataSource``.
+           theme: str | None = None) -> int:
+    """Open the viewer. ``projdata`` may be a path, a ``stir.ProjData`` or a ``ProjDataSource``. ``theme``
+    None uses the theme of the last session (dark the first time).
 
     Blocks until the window is closed; returns the Qt exit code. A load failure is shown in the window.
     """
     protect_singletons()   # Python 3.11 + PySide6 6.12 would otherwise abort mid-session (see the module)
     # an existing instance is the GUI application of the caller (e.g. an IPython Qt event loop)
     app = cast(QtWidgets.QApplication, QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1]))
+    settings = open_settings()
+    theme = theme or saved_theme(settings) or DEFAULT_PALETTE.name
     if theme not in PALETTES:
         raise ValueError(f"unknown theme {theme!r}; choose from {sorted(PALETTES)}")
     apply_theme(app, PALETTES[theme])
-    vm, window = build(stir_path, theme)
+    vm, window = build(stir_path, theme, settings)
     if sys.platform == "darwin":   # only macOS sends QFileOpenEvent
         install_file_open_handler(app, vm, window)
     if demo:

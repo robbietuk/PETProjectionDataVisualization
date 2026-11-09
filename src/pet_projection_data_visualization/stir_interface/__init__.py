@@ -8,6 +8,7 @@
 """
 from .gateway import ProjDataLayout, StirGateway, StirNotFoundError, StirProjDataHandle
 from .source import StirProjDataSource, open_stir_source
+from .swig_gateway import probe_stir
 
 __all__ = ["ProjDataLayout", "StirGateway", "StirNotFoundError", "StirProjDataHandle",
-           "StirProjDataSource", "open_stir_source"]
+           "StirProjDataSource", "open_stir_source", "probe_stir"]

@@ -170,15 +170,49 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 How each slice is laid out on screen (which axis is up and which way it runs) is described in
 [docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md).
 
-In the window: the *Slice* box chooses sinogram / viewgram / tangential slice; *Time of flight*
-chooses a single bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value, the
-bin indices, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor.
-Keys: Space play/pause, Left/Right step the active index, PgUp/PgDn change segment, L lock/unlock the colour
-levels. When a slider, spin box or text field has the keyboard focus, these keys go to it instead (e.g. Right on
-the segment slider moves the segment, L typed in the path box is just a letter). Min/Max level accept any number,
-including scientific notation such as `2.5e-8`.
+The image takes most of the window. Hovering an icon of the rail on the left (or tabbing to it) shows a
+short summary; clicking it (or Enter/Space) opens its flyout, which stays open until you click it again,
+click elsewhere or press Esc: *Data* (path box, Browse, Load, demo data, the files opened recently,
+and whether STIR was found), *Info* (the data set's metadata), *Display* (colour map, log display and
+theme) and *Settings* (show or hide the TOF profile and the line profile, animation speed, loop or
+bounce at the end of an axis, the keyboard shortcuts). The slice toolbar under the image has the image
+type tabs (Sinogram | Viewgram | Tangential) on the left and, on the right, one row for each axis the
+image does not show: the segment, the fixed axis (axial position for a sinogram, view for a viewgram,
+tangential position for a tangential slice) and, for TOF data, the TOF bin. Each row has ‹ › step
+buttons, a value box, a slider and its own play button; only one axis plays at a time, so pressing
+another row's play switches to it. The TOF row also chooses a single bin or Sum / Mean / Max over all
+bins; while TOF is collapsed its play button is disabled, and its tooltip says why.
 
-Colour levels (*Display* card, *Levels* toggle):
+Beside the colour bar are the colour levels: Max at the top, Min at the bottom, *Adaptive | Locked* and
+*Global range* (see below). Hovering shows a readout in a corner of the image (segment, view, axial and
+tangential position, TOF bin and value); when the cursor comes close to it, it moves to another corner.
+The plot column on the right has a fixed width, so what it shows never resizes the image (drag the edge
+between the plots to share its height). It shows:
+
+* the **TOF profile** of the LOR under the cursor (TOF data only), with the current bin marked. While
+  TOF is collapsed (Sum, Mean or Max) it is still shown, as context: "TOF bins at this LOR (the image
+  shows their Sum: …)", with the collapsed value as a dashed reference line;
+* the **line profile**, *Row | Column | Free*. Row and Column read the exact bins of the image row or
+  column through the cursor (their tooltips say which axis, e.g. "Along tangential"; Row, along
+  tangential, is the default); a dashed line on the image shows that row or column and follows the
+  cursor. Free reads along a line drawn on the image: drag the line or its end
+  handles; the samples are interpolated and plotted against the distance in bins. The profile shows
+  the image as displayed (one TOF bin, or Sum/Mean/Max); *per TOF bin* adds one faint curve per TOF bin
+  along the same line.
+
+A click on the image freezes both profiles at that LOR (marked with a cross) while you change slices or
+image type; another click, or Esc, releases them. The viewer remembers the window size, the heights of the plots, the
+theme, the recent files and the display, profile and animation settings for the next session.
+
+Keys: Space plays or pauses the axis played last (TOF at first for TOF data, otherwise the fixed axis;
+the toolbar says which), Left/Right step the fixed axis, PgUp/PgDn change segment, L lock/unlock the colour
+levels, F freezes or releases the profiles (at the cursor, or the centre of the image), Esc closes the
+open flyout or else releases frozen profiles (*Settings* lists these keys). When a slider, spin box or
+text field has the keyboard focus, these keys go to it instead (e.g. Right on the segment slider moves
+the segment, L typed in the path box is just a letter). Min/Max level accept any number, including
+scientific notation such as `2.5e-8`.
+
+Colour levels (beside the colour bar, *Adaptive | Locked*):
 
 | | **Adaptive** (default) | **Locked** |
 |---|---|---|
@@ -186,13 +220,13 @@ Colour levels (*Display* card, *Levels* toggle):
 | Step view / axial / tangential / segment / TOF bin, play | follow the new slice | unchanged |
 | Sinogram / viewgram / tangential, Bin / Sum / Mean / Max | follow the new slice | unchanged |
 | Type Min or Max, drag the histogram | locks at the new values | stays locked at the new values |
-| *Lock to global range* | locks at the range of the whole data set (current TOF mode) | same, replaces the lock |
+| *Global range* | locks at the range of the whole data set (current TOF mode) | same, replaces the lock |
 | log(1 + x) display | recomputed in the new scale | the same data values, mapped through log(1 + x) |
 | Load another data set | adaptive | back to adaptive (old limits may mean nothing there) |
 | A read or load fails | unchanged | stays locked at the same values |
 
 Locking freezes what is on screen, including the colour bar's axis (locking by dragging the histogram does not
-rescale it under the mouse; typed levels and *Lock to global range* fit the axis to the new limits). While locked
+rescale it under the mouse; typed levels and *Global range* fit the axis to the new limits). While locked
 the header shows a chip such as *Levels locked 0 – 3.86*.
 
 ## Architecture (MVVM)
@@ -206,12 +240,12 @@ stir module ─▶ stir_interface ─▶ model ◀─ viewmodel ◀─ view (PyS
 
 | Package | Knows about | Role |
 |---|---|---|
-| `model/` | numpy only | `ProjDataInfo`, immutable `Selection`, `ProjDataset` (slices, TOF reduction, caches, stats) |
+| `model/` | numpy only | `ProjDataInfo`, immutable `Selection`, `ProjDataset` (slices, TOF reduction, caches, stats), line profiles through a slice (`profiles.py`) |
 | `sources/` | model | numpy `.npy/.npz` source, synthetic TOF demo, `make_source` |
 | `stir_interface/` | model, `stir` | `StirGateway`/`StirProjDataHandle` protocols, `SwigStirGateway` (the only file importing `stir`), `StirProjDataSource` adapter |
-| `viewmodel/` | model | `ViewerViewModel`: observable properties + command methods, formatting; shared `ChoiceOptions` and `BindingRegistry`; no Qt |
-| `view/` | viewmodel, Qt | `ViewerWindow` binds reusable `components` to the view model; `theme` (colour scheme) is Qt-free; knows nothing about sources or STIR |
-| `app.py` | everything | composition root: wires loader, demo data, view model and window |
+| `viewmodel/` | model | `ViewerViewModel` (files, title, status, errors) owning a `ProjectionPaneViewModel` (`vm.pane`: everything about the data set on screen): observable properties + command methods, formatting, playback steps (`playback.py`), what the profile plots read (`profiles.py`), the readout's corner (`readout.py`), the settings remembered between sessions; shared `ChoiceOptions` and `BindingRegistry`; no Qt |
+| `view/` | viewmodel, Qt | `ViewerWindow` arranges the icon rail (`rail.py`), the self-contained `ProjectionDataPane` (`pane.py`: image, colour bar, readout, profile plots) and the slice toolbar, built from reusable `components`; `theme` (colour scheme) is Qt-free; knows nothing about sources or STIR |
+| `app.py` | everything | composition root: wires loader, demo data, the STIR probe, view model, window and the `QSettings` file |
 
 `tests/test_architecture.py` enforces these import rules, and checks in a clean interpreter that the
 Qt-free layers never load PySide6, pyqtgraph, matplotlib or `stir`.
@@ -219,7 +253,7 @@ Qt-free layers never load PySide6, pyqtgraph, matplotlib or `stir`.
 ## Look and feel
 
 The UI uses one colour scheme (`view/theme.py`): a dark default and a light variant, chosen with
-`--theme dark|light` or View > Light theme. Every colour comes from a `Palette` (text/background pairs are
+`--theme dark|light`, View > Light theme or the *Display* flyout (the viewer starts with the theme used last). Every colour comes from a `Palette` (text/background pairs are
 tested for WCAG AA contrast, and a test fails if a widget file hard-codes a colour); `build_stylesheet`
 turns the palette into the application stylesheet and the plots read the same palette.
 
@@ -227,7 +261,7 @@ Shared component logic lives in two places: Qt-free `viewmodel/options.py` (`Cho
 the labels/order of slice modes, TOF modes, level modes and colour maps) and `viewmodel/bindings.py`
 (`BindingRegistry`: declarative property -> widget bindings, each run once per command), and Qt
 `view/components.py` (`SegmentedControl` and `ChoiceCombo` share one `ChoiceControl` contract; `Card`,
-`LabeledRow`, `ChipRow`, `MetricGrid`, `Banner`, `EmptyState`, `DimensionControl`). Errors appear in an inline,
+`LabeledRow`, `ChipRow`, `MetricGrid`, `Banner`, `EmptyState`, `AxisRowControl`). Errors appear in an inline,
 dismissable banner instead of a modal dialog, and an empty state is shown until data is loaded.
 
 ## Tests
@@ -264,7 +298,7 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 
 ## Known limitations
 
-* Everything runs on the UI thread. Collapsing TOF bins reads every bin of one segment, and *Lock to global range*
+* Everything runs on the UI thread. Collapsing TOF bins reads every bin of one segment, and *Global range*
   reads the whole data set once (every segment and, for single bins, every TOF bin); on large TOF data this
   takes a while (a wait cursor is shown). Not measured on real data yet.
 * Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least

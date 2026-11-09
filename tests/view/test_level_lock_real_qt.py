@@ -33,19 +33,21 @@ def shown_window(app):
     yield w
     w._timer.stop()
     w.close()
+    w.deleteLater()                            # gone now, not at some later module's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 @pytest.fixture
 def win(shown_window, app):
     """The shared window with freshly loaded demo data (adaptive levels, linear display, initial slice)."""
     vm = shown_window.vm
-    vm.set_playing(False)
-    vm.set_log_display(False)
+    vm.pane.set_playing(False)
+    vm.pane.set_log_display(False)
     assert vm.load(small_demo())
-    assert vm.level_mode is LevelMode.ADAPTIVE and vm.slice_mode is SliceMode.SINOGRAM
+    assert vm.pane.level_mode is LevelMode.ADAPTIVE and vm.pane.slice_mode is SliceMode.SINOGRAM
     app.processEvents()
     yield shown_window
-    vm.set_playing(False)
+    vm.pane.set_playing(False)
 
 
 def _button(win, mode):
@@ -59,16 +61,16 @@ def _press(widget, key):
 
 def _colour_bar(win):
     """What the user sees of the colour scale: the level region and the colour bar's axis range."""
-    return tuple(win.hist.getLevels()), tuple(win.hist.getHistogramRange())
+    return tuple(win.pane.hist.getLevels()), tuple(win.pane.hist.getHistogramRange())
 
 
 def test_toggle_drives_the_view_model_and_follows_it(win):
     assert win.level_control.choice() is LevelMode.ADAPTIVE
     _button(win, LevelMode.LOCKED).click()
-    assert win.vm.level_mode is LevelMode.LOCKED
-    win.vm.set_level_mode(LevelMode.ADAPTIVE)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED
+    win.vm.pane.set_level_mode(LevelMode.ADAPTIVE)
     assert win.level_control.choice() is LevelMode.ADAPTIVE and _button(win, LevelMode.ADAPTIVE).isChecked()
-    win.vm.set_manual_levels(1.0, 2.0)                       # an edit locks: the toggle shows it
+    win.vm.pane.set_manual_levels(1.0, 2.0)                       # an edit locks: the toggle shows it
     assert win.level_control.choice() is LevelMode.LOCKED
 
 
@@ -79,91 +81,93 @@ def test_toggle_has_an_accessible_name_and_tooltip(win):
 
 
 def test_colour_bar_is_identical_while_stepping_views_when_locked(win):
-    win.vm.set_slice_mode(SliceMode.VIEWGRAM)                # views are the stepped index here
+    win.vm.pane.set_slice_mode(SliceMode.VIEWGRAM)                # views are the stepped index here
     _button(win, LevelMode.LOCKED).click()
     locked = _colour_bar(win)
-    assert locked[0] == pytest.approx(win.vm.levels, rel=0, abs=0)
-    for view in range(win.vm.dataset.info.num_views):
-        win.vm.set_value("view", view)
+    assert locked[0] == pytest.approx(win.vm.pane.levels, rel=0, abs=0)
+    for view in range(win.vm.pane.dataset.info.num_views):
+        win.vm.pane.set_value("view", view)
         QtWidgets.QApplication.processEvents()
         assert _colour_bar(win) == locked, view
         assert float(win.level_edits["high"].text()) == pytest.approx(locked[0][1], rel=1e-5)
-    for cmd in (lambda: win.vm.set_tof_mode(TofMode.SUM), lambda: win.vm.set_slice_mode(SliceMode.TANGENTIAL),
-                lambda: win.vm.step("segment", 1), lambda: win.vm.set_tof_mode(TofMode.BIN)):
+    for cmd in (lambda: win.vm.pane.set_tof_mode(TofMode.SUM), lambda: win.vm.pane.set_slice_mode(SliceMode.TANGENTIAL),
+                lambda: win.vm.pane.step("segment", 1), lambda: win.vm.pane.set_tof_mode(TofMode.BIN)):
         cmd()
         QtWidgets.QApplication.processEvents()
         assert _colour_bar(win) == locked
 
 
 def test_colour_bar_moves_with_the_slice_when_adaptive(win):
-    win.vm.set_slice_mode(SliceMode.VIEWGRAM)
+    win.vm.pane.set_slice_mode(SliceMode.VIEWGRAM)
     levels = set()
-    for view in range(win.vm.dataset.info.num_views):
-        win.vm.set_value("view", view)
-        levels.add(tuple(win.hist.getLevels()))
+    for view in range(win.vm.pane.dataset.info.num_views):
+        win.vm.pane.set_value("view", view)
+        levels.add(tuple(win.pane.hist.getLevels()))
     assert len(levels) > 1
 
 
 def test_playback_keeps_the_colour_bar_when_locked(win):
-    win.vm.toggle_level_lock()
+    win.vm.pane.toggle_level_lock()
     locked = _colour_bar(win)
-    win.play_button.click()
+    play = win.dim_controls["tof"].play_button
+    play.click()
     for _ in range(7):
         win._on_timer()
         assert _colour_bar(win) == locked
-    win.play_button.click()
+    play.click()
 
 
 def test_dragging_the_histogram_while_locked_keeps_the_lock_at_the_new_values(win):
-    win.vm.toggle_level_lock()
-    win.hist.setLevels(0.5, 1.25)
-    win.hist.sigLevelChangeFinished.emit(win.hist)
-    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == (0.5, 1.25)
+    win.vm.pane.toggle_level_lock()
+    win.pane.hist.setLevels(0.5, 1.25)
+    win.pane.hist.sigLevelChangeFinished.emit(win.pane.hist)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED and win.vm.pane.levels == (0.5, 1.25)
     assert win.level_control.choice() is LevelMode.LOCKED
     bar = _colour_bar(win)
-    win.vm.set_value("axial", 0)
+    win.vm.pane.set_value("axial", 0)
     assert _colour_bar(win) == bar and bar[0] == (0.5, 1.25)
 
 
 def test_typing_a_level_while_locked_keeps_the_lock(win):
-    win.vm.toggle_level_lock()
+    win.vm.pane.toggle_level_lock()
     edit = win.level_edits["high"]
     edit.setText("1.5")
     edit.editingFinished.emit()
-    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels[1] == 1.5
+    assert win.vm.pane.level_mode is LevelMode.LOCKED and win.vm.pane.levels[1] == 1.5
 
 
 def test_global_range_button_locks_at_the_data_set_range(win):
     win.global_button.click()
-    assert win.vm.level_mode is LevelMode.LOCKED
-    assert win.vm.levels == win.vm.dataset.global_range(win.vm.selection)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED
+    assert win.vm.pane.levels == win.vm.pane.dataset.global_range(win.vm.pane.selection)
     assert win.level_control.choice() is LevelMode.LOCKED
 
 
 def test_unlocking_gives_the_colour_bar_back_to_the_data(win):
-    win.vm.set_manual_levels(1.0, 2.0)
+    win.vm.pane.set_manual_levels(1.0, 2.0)
     win.level_control._buttons[0].click()                    # Adaptive
-    assert win.vm.level_mode is LevelMode.ADAPTIVE
-    assert tuple(win.hist.getLevels()) == pytest.approx(win.vm.levels)
-    assert win.vm.levels != (1.0, 2.0)
+    assert win.vm.pane.level_mode is LevelMode.ADAPTIVE
+    assert tuple(win.pane.hist.getLevels()) == pytest.approx(win.vm.pane.levels)
+    assert win.vm.pane.levels != (1.0, 2.0)
 
 
 def test_locked_chip_is_shown_in_the_header(win):
-    assert not any(t.startswith("Levels locked") for t in win.chips.texts())
-    win.vm.set_manual_levels(0.0, 3.86)
-    assert "Levels locked 0 – 3.86" in win.chips.texts()
-    win.vm.toggle_level_lock()
-    assert not any(t.startswith("Levels locked") for t in win.chips.texts())
+    assert not any(t.startswith("Levels locked") for t in win.pane.chips.texts())
+    win.vm.pane.set_manual_levels(0.0, 3.86)
+    assert "Levels locked 0 – 3.86" in win.pane.chips.texts()
+    win.vm.pane.toggle_level_lock()
+    assert not any(t.startswith("Levels locked") for t in win.pane.chips.texts())
 
 
 def test_L_toggles_the_lock(win):
-    win.play_button.setFocus()                               # a widget with no use for L
-    _press(win.play_button, Key.Key_L)
-    assert win.vm.level_mode is LevelMode.LOCKED
+    play = win.dim_controls["tof"].play_button
+    play.setFocus()                                          # a widget with no use for L
+    _press(play, Key.Key_L)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED
     seg = win.dim_controls["segment"]._slider                # sliders do not use letters either
     seg.setFocus()
     _press(seg, Key.Key_L)
-    assert win.vm.level_mode is LevelMode.ADAPTIVE
+    assert win.vm.pane.level_mode is LevelMode.ADAPTIVE
 
 
 @pytest.mark.parametrize("widget", ["path_edit", "level_low", "info_view", "colour_map"])
@@ -172,13 +176,14 @@ def test_L_is_handed_to_a_focused_text_field_or_combo_not_the_shortcut(win, monk
     ShortcutOverride, the handler itself must hand a text widget its key)."""
     target = {"path_edit": win.path_edit, "level_low": win.level_edits["low"], "info_view": win.info_view,
               "colour_map": win.cmap_control._combo}[widget]
+    win.rail.open({"path_edit": "data", "info_view": "info"}.get(widget, "display"))   # where the field lives
     target.setFocus()
     QtWidgets.QApplication.processEvents()
     sent = []
     monkeypatch.setattr(QtWidgets.QApplication, "sendEvent",
                         staticmethod(lambda obj, ev: sent.append((obj, ev.type(), ev.text()))))
     win._on_shortcut(Key.Key_L)
-    assert win.vm.level_mode is LevelMode.ADAPTIVE
+    assert win.vm.pane.level_mode is LevelMode.ADAPTIVE
     assert [(o, t) for o, t, _ in sent] == [(target, QtCore.QEvent.Type.KeyPress),
                                             (target, QtCore.QEvent.Type.KeyRelease)]
     assert {text for *_, text in sent} == {"l"}             # the letter is forwarded, so it is still typed
@@ -188,48 +193,50 @@ def test_L_forwarded_to_a_text_field_types_the_letter(win):
     win.info_view.setReadOnly(False)
     try:
         win.info_view.setPlainText("")
+        win.rail.open("info")
         win.info_view.setFocus()
         QtWidgets.QApplication.processEvents()
         win._on_shortcut(Key.Key_L)
-        assert win.info_view.toPlainText() == "l" and win.vm.level_mode is LevelMode.ADAPTIVE
+        assert win.info_view.toPlainText() == "l" and win.vm.pane.level_mode is LevelMode.ADAPTIVE
     finally:
         win.info_view.setReadOnly(True)                      # the window is shared by the whole module
 
 
 def test_typing_L_into_the_path_box_types_it(win):
+    win.rail.open("data")
     win.path_edit.setFocus()
     win.path_edit.setText("/data/fi")
     _press(win.path_edit, Key.Key_L)
-    assert win.path_edit.text() == "/data/fil" and win.vm.level_mode is LevelMode.ADAPTIVE
+    assert win.path_edit.text() == "/data/fil" and win.vm.pane.level_mode is LevelMode.ADAPTIVE
 
 
 # ---- the colour bar's axis when a lock is made ------------------------------------------------------
 def _axis(win):
     QtWidgets.QApplication.processEvents()
-    return tuple(win.hist.getHistogramRange())
+    return tuple(win.pane.hist.getHistogramRange())
 
 
 def test_locking_from_the_toggle_keeps_the_colour_bar_axis_on_screen(win):
     before = _axis(win)
     _button(win, LevelMode.LOCKED).click()
     assert _axis(win) == pytest.approx(before, rel=1e-9)
-    win.vm.set_value("axial", 0)
+    win.vm.pane.set_value("axial", 0)
     assert _axis(win) == pytest.approx(before, rel=1e-9)
 
 
 def test_dragging_the_histogram_while_adaptive_locks_without_moving_the_axis(win):
     """The drag ends on sigLevelChangeFinished: the axis must not rescale under the mouse at release."""
     before = _axis(win)
-    lo, hi = win.vm.levels
-    win.hist.setLevels(lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo))      # what the drag left on screen
-    win.hist.sigLevelChangeFinished.emit(win.hist)
-    assert win.vm.level_mode is LevelMode.LOCKED
-    assert win.vm.levels == pytest.approx((lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo)))
+    lo, hi = win.vm.pane.levels
+    win.pane.hist.setLevels(lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo))      # what the drag left on screen
+    win.pane.hist.sigLevelChangeFinished.emit(win.pane.hist)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED
+    assert win.vm.pane.levels == pytest.approx((lo + 0.25 * (hi - lo), hi - 0.25 * (hi - lo)))
     pinned = _axis(win)
     assert pinned == pytest.approx(before, rel=1e-3)          # no visible jump (was rescaled to the levels)
     for view in (0, 3, 5):
-        win.vm.set_value("axial", view)
-        assert _axis(win) == pinned and tuple(win.hist.getLevels()) == win.vm.levels
+        win.vm.pane.set_value("axial", view)
+        assert _axis(win) == pinned and tuple(win.pane.hist.getLevels()) == win.vm.pane.levels
 
 
 def test_typed_levels_fit_the_axis_to_the_new_lock(win):
@@ -238,5 +245,5 @@ def test_typed_levels_fit_the_axis_to_the_new_lock(win):
     edit.setText("40")
     edit.editingFinished.emit()
     lo, hi = _axis(win)
-    assert win.vm.levels[1] == 40.0 and lo <= win.vm.levels[0] and hi >= 40.0
-    assert hi - lo < 1.5 * (40.0 - win.vm.levels[0])           # fitted to the lock, not left at the old axis
+    assert win.vm.pane.levels[1] == 40.0 and lo <= win.vm.pane.levels[0] and hi >= 40.0
+    assert hi - lo < 1.5 * (40.0 - win.vm.pane.levels[0])           # fitted to the lock, not left at the old axis

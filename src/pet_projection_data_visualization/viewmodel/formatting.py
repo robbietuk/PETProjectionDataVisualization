@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 from ..model import ProjDataInfo, Selection, SliceImage, SliceMode, SliceStats, TofMode
 
@@ -22,6 +23,39 @@ def describe_dataset(info: ProjDataInfo) -> str:
     return "\n".join(lines)
 
 
+_FORMAT_BY_SUFFIX = {".hs": "Interfile (read with STIR)", ".npy": "numpy .npy", ".npz": "numpy .npz"}
+
+
+def describe_format(info: ProjDataInfo, path: str = "") -> str:
+    """The data format: what the source says, else what the file name suggests, else what it is."""
+    if info.extra.get("format"):
+        return info.extra["format"]
+    suffix = os.path.splitext(path)[1].lower()
+    if suffix in _FORMAT_BY_SUFFIX:
+        return _FORMAT_BY_SUFFIX[suffix]
+    return f"{suffix[1:]} file" if suffix else ("file" if path else "in-memory data")
+
+
+def data_summary(info: ProjDataInfo | None, path: str = "") -> str:
+    """The Data rail button's hover peek: where the data comes from and its format."""
+    if info is None:
+        return "No data loaded"
+    return f"{path or info.name}\nFormat: {describe_format(info, path)}"
+
+
+def dataset_summary(info: ProjDataInfo) -> str:
+    """The Data set rail button's hover peek: scanner, dimensions and whether it has TOF."""
+    axial = sorted({info.num_axial(s) for s in info.segments})
+    axial_text = str(axial[0]) if len(axial) == 1 else f"{axial[0]}-{axial[-1]}"
+    tof = f"yes, {info.num_tof_bins} bins" if info.is_tof else "no"
+    return "\n".join([
+        f"Scanner: {info.extra.get('scanner') or 'not recorded'}",
+        f"Segments {info.num_segments}, views {info.num_views}, axial {axial_text}, "
+        f"tangential {info.num_tangential}",
+        f"TOF: {tof}",
+    ])
+
+
 def describe_slice(image: SliceImage, stats: SliceStats) -> str:
     rows, cols = image.shape
     return "\n".join([
@@ -37,6 +71,21 @@ def describe_slice(image: SliceImage, stats: SliceStats) -> str:
 def format_pixel(image: SliceImage, row: int, col: int, value: float) -> str:
     idx = image.indices_at(row, col)
     return f"{image.row_axis} {idx[image.row_axis]}, {image.col_axis} {idx[image.col_axis]}:  {value:.6g}"
+
+
+def format_readout(info: ProjDataInfo, sel: Selection, image: SliceImage, row: int, col: int,
+                   value: float) -> tuple[tuple[str, str], ...]:
+    """(label, value) lines of the cursor readout: the bin under the cursor (segment, view, axial and
+    tangential position, the TOF bin or reduction) and its value."""
+    lor = {d: sel.get(d) for d in ("segment", "view", "axial", "tangential")}
+    lor.update(image.indices_at(row, col))
+    lines = [("Segment", str(lor["segment"])), ("View", str(lor["view"])), ("Axial", str(lor["axial"])),
+             ("Tangential", str(lor["tangential"]))]
+    if info.is_tof:
+        lines.append(("TOF bin", str(sel.tof)) if sel.tof_mode is TofMode.BIN
+                     else ("TOF", f"{sel.tof_mode.name.capitalize()} of {info.num_tof_bins} bins"))
+    lines.append(("Value", f"{value:.6g}"))
+    return tuple(lines)
 
 
 def format_profile_title(segment: int, view: int, axial: int, tangential: int, total: float) -> str:

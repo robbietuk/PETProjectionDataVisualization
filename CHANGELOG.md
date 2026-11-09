@@ -64,6 +64,39 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   marker, so its types are visible to users' type checkers.
 - **Python 3.14 and 3.15.** Support for Python 3.14 and 3.15, tested in CI on Linux, macOS and Windows.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
+- **Icon rail peeks and flyout content (#36, phase 2).** Hovering or focusing a rail icon shows a
+  short summary beside it: the file path and format, the scanner, dimensions and TOF yes/no, the
+  display settings, or the profile and animation settings. A flyout opened with a click stays open
+  until you click elsewhere in the window or press Esc. Enter or Space on a focused icon opens it
+  and moves the focus into it, and Esc gives the focus back. The *Data* flyout lists the files
+  opened this session and shows whether STIR was found and where. *Display* has a Dark | Light
+  theme switch, in step with *View > Light theme*. *Settings* can hide the TOF profile plot and
+  lists the keyboard shortcuts.
+- **Slice toolbar with per-axis play (#36, phase 3).** The toolbar under the image has image type
+  tabs (Sinogram | Viewgram | Tangential) and one compact row for each axis the image does not show:
+  the segment, the fixed axis of the image type and, for TOF data, the TOF bin, each with ‹ › step
+  buttons, a value box, a slider and its own play button. Any of these axes can be animated, not only
+  TOF; one plays at a time, and pressing another row's play switches to it. Space plays or pauses the
+  axis played last, and the toolbar says which. The TOF row holds Bin | Sum | Mean | Max; its play
+  button is disabled while TOF is collapsed, with a tooltip saying why. *Settings* chooses whether
+  playback loops round or bounces back at the end of an axis.
+- **Profiles (#36, phase 5).** A *line profile* plot under the TOF profile, with a *Row | Column |
+  Free* toggle. Row and Column read the exact bins of the image row or column through the cursor,
+  named for the image type ("along tangential" on a sinogram or viewgram, the default), and a dashed
+  line on the image shows that row or column, following the cursor; Free reads
+  along a line you drag on the image (with handles to move its ends), interpolated, against the
+  distance in bins. It shows the image as displayed (a single TOF bin, or Sum/Mean/Max), and *per
+  TOF bin* adds one faint curve per TOF bin along the same line. While TOF is collapsed, the TOF
+  profile is still shown, labelled as context ("TOF bins at this LOR (the image shows their Sum: …)"),
+  with the collapsed value as a dashed reference line. A click on the image freezes both profiles at
+  that LOR, marked on the image, while you change slices; another click or Esc releases them (key
+  `F` freezes and releases from the keyboard).
+- **Remembered settings (#36, phase 6).** The viewer remembers, from one session to the next, the
+  window size, the heights of the profile plots, the theme, the recent files, and the colour map, log display, profile plots
+  shown, line profile mode, per-TOF-bin overlay, animation speed and loop or bounce. They are kept in
+  an INI file in the user's configuration folder (e.g.
+  `~/.config/PETProjectionDataVisualization/viewer.ini` on Linux) and saved when the window closes.
+  *Settings* can also hide the line profile; with no plot shown, the image takes the room.
 
 ### Fixed
 
@@ -91,6 +124,31 @@ These came out of two independent code reviews, before the split from STIR:
 
 ### Changed
 
+- **New layout (#36, phase 1).** The left column of cards is replaced by a narrow icon rail
+  (Data, Info, Display, Settings); clicking an icon opens its controls in a flyout beside it and
+  clicking again closes it. The image gets most of the window, the TOF profile moves to a
+  fixed-width column on its right (so what the plots show never resizes the image) (hidden for non-TOF data), and the slice controls (sinogram / viewgram /
+  tangential, the indices, time of flight and Play) move to a toolbar under the image. The cursor
+  value is shown under the image instead of in the status bar. The Data flyout also has a
+  *Load demo data* button.
+- **Colour levels by the colour bar, readout over the image (#36, phase 4).** The level controls
+  (Adaptive | Locked, Max, Min and *Global range*, which was *Lock to global range*) moved from the
+  Display flyout to a column beside the colour bar, Max at the top and Min at the bottom like the
+  bar. The cursor readout floats in a corner of the image and lists the segment, view, axial and
+  tangential position, the TOF bin (or the TOF reduction) and the value; when the cursor comes close
+  to it, it moves to another corner.
+- `--theme` (and `launch(theme=...)`) now defaults to the theme used last, and dark the first
+  time (#36, phase 6).
+- **Breaking:** for code that drives the view model: everything about the data set on screen
+  (selection, levels, display, hover, TOF profile, playback) moved from `ViewerViewModel` to its
+  projection data pane, `ViewerViewModel.pane` (a `ProjectionPaneViewModel`); for example
+  `vm.set_slice_mode(...)` is now `vm.pane.set_slice_mode(...)`. File loading, the window title,
+  the status line and errors stay on `ViewerViewModel`.
+- **Breaking:** for code that drives the view model: the pane's `dimensions` (one `DimensionState`
+  per index) became `axis_rows`, one `AxisRow` per toolbar row, so it no longer lists the axes the
+  image shows (#36, phase 3). `set_playing(True)` and `toggle_play()` play the axis played last, which
+  may be any toolbar axis (`play_axis`), and `can_play` is now also true for non-TOF data. New
+  commands: `toggle_play_axis(dim)` and `set_play_mode(PlayMode.LOOP | PlayMode.BOUNCE)`.
 - Refreshed visual design: new light and dark palettes with one accent colour, flat cards with
   subtle borders, a clear type scale and more generous spacing; the plots share the card colour.
   Header chips are no longer clipped (a long data set title is shortened with "…" instead), and the

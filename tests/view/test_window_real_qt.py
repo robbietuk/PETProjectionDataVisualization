@@ -14,7 +14,7 @@ from PySide6 import QtCore, QtWidgets  # noqa: E402
 from fakes import non_tof_source, small_demo  # noqa: E402
 from pet_projection_data_visualization.model import SliceMode, TofMode  # noqa: E402
 from pet_projection_data_visualization.view.styling import apply_theme  # noqa: E402
-from pet_projection_data_visualization.view.window import SIDEBAR_WIDTH, ViewerWindow  # noqa: E402
+from pet_projection_data_visualization.view.window import ViewerWindow  # noqa: E402
 from pet_projection_data_visualization.viewmodel import LevelMode, ViewerViewModel  # noqa: E402
 
 
@@ -31,74 +31,103 @@ def win(app):
     yield w
     w._timer.stop()
     w.close()
+    w.deleteLater()                            # gone now, not at some later test's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 def test_user_edits_flow_into_the_view_model(win):
     win.dim_controls["axial"]._spin.setValue(3)
-    assert win.vm.selection.axial == 3
+    assert win.vm.pane.selection.axial == 3
     win.mode_control._buttons[1].click()
-    assert win.vm.slice_mode is SliceMode.VIEWGRAM
+    assert win.vm.pane.slice_mode is SliceMode.VIEWGRAM
     win.tof_mode_control._buttons[list(TofMode).index(TofMode.SUM)].click()
-    assert win.vm.tof_mode is TofMode.SUM and not win.play_button.isEnabled()
+    tof_play = win.dim_controls["tof"].play_button
+    assert win.vm.pane.tof_mode is TofMode.SUM and not tof_play.isEnabled() and "Sum" in tof_play.toolTip()
+    win.dim_controls["segment"].play_button.click()
+    assert win.vm.pane.play_axis == "segment"
+    win.dim_controls["segment"]._next.click()
+    assert win.vm.pane.selection.segment == 1
     win.log_switch.setChecked(True)
-    assert win.vm.log_display
+    assert win.vm.pane.log_display
     win.level_control._buttons[list(LevelMode).index(LevelMode.LOCKED)].click()
-    assert win.vm.level_mode is LevelMode.LOCKED
+    assert win.vm.pane.level_mode is LevelMode.LOCKED
     win.global_button.click()
-    lo, hi = win.vm.dataset.global_range(win.vm.selection)
-    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == pytest.approx((np.log1p(lo), np.log1p(hi)))
+    lo, hi = win.vm.pane.dataset.global_range(win.vm.pane.selection)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED and win.vm.pane.levels == pytest.approx((np.log1p(lo), np.log1p(hi)))
 
 
 def test_view_model_changes_flow_into_the_widgets(win):
     vm = win.vm
-    vm.set_value("axial", 5)
+    vm.pane.set_value("axial", 5)
     assert win.dim_controls["axial"]._spin.value() == 5
-    vm.set_slice_mode(SliceMode.TANGENTIAL)
+    vm.pane.set_slice_mode(SliceMode.TANGENTIAL)
     assert win.mode_control.choice() is SliceMode.TANGENTIAL
-    assert win.dim_controls["tangential"].isEnabled() and not win.dim_controls["axial"].isEnabled()
-    vm.set_tof_mode(TofMode.MEAN)
-    assert win.tof_mode_control.choice() is TofMode.MEAN and not win.dim_controls["tof"].isEnabled()
+    assert not win.dim_controls["tangential"].isHidden() and win.dim_controls["axial"].isHidden()
+    vm.pane.set_tof_mode(TofMode.MEAN)
+    tof = win.dim_controls["tof"]
+    assert win.tof_mode_control.choice() is TofMode.MEAN and not tof._spin.isEnabled()
+    assert not tof.play_button.isEnabled() and win.tof_mode_control.isEnabled()      # Bin can be chosen again
     assert "Source" in win.info_view.toPlainText()
 
 
 def test_widget_updates_do_not_echo_back_as_commands(win):
     calls = []
-    orig = win.vm.set_value
-    win.vm.set_value = lambda *a: (calls.append(a), orig(*a))[1]
-    win.vm.set_value("view", 4)
+    orig = win.vm.pane.set_value
+    win.vm.pane.set_value = lambda *a: (calls.append(a), orig(*a))[1]
+    win.vm.pane.set_value("view", 4)
     assert calls == [("view", 4)]                    # one command, not a feedback loop
 
 
 def test_image_is_drawn_with_real_bin_coordinates(win):
-    rect = win.img.boundingRect()
+    rect = win.pane.img.boundingRect()
     assert (rect.width(), rect.height()) == (15.0, 12.0)
-    assert win.img.image.shape == (12, 15)
-    assert win.plot.titleLabel.text.startswith("Sinogram")
+    assert win.pane.img.image.shape == (12, 15)
+    assert win.pane.plot.titleLabel.text.startswith("Sinogram")
 
 
 def test_playback_timer_follows_the_view_model(win):
     assert not win._timer.isActive()
-    win.vm.set_playing(True)
-    assert win._timer.isActive() and win.play_button.isChecked()
-    before = win.vm.selection.tof
+    win.vm.pane.set_playing(True)
+    tof_play = win.dim_controls["tof"].play_button
+    assert win._timer.isActive() and tof_play.isChecked()
+    before = win.vm.pane.selection.tof
     win._on_timer()
-    assert win.vm.selection.tof != before
-    win.vm.set_tof_mode(TofMode.SUM)
-    assert not win._timer.isActive() and not win.play_button.isChecked()
+    assert win.vm.pane.selection.tof != before
+    win.vm.pane.set_tof_mode(TofMode.SUM)
+    assert not win._timer.isActive() and not tof_play.isChecked()
+
+
+def test_row_play_buttons_play_one_axis_at_a_time(win):
+    seg, axial = win.dim_controls["segment"].play_button, win.dim_controls["axial"].play_button
+    seg.click()
+    assert win._timer.isActive() and seg.isChecked() and not axial.isChecked()
+    axial.click()
+    assert win.vm.pane.play_axis == "axial" and axial.isChecked() and not seg.isChecked()
+    assert "pauses the axial" in win.space_hint.text()
+    axial.click()
+    assert not win._timer.isActive() and not axial.isChecked()
+
+
+def test_play_mode_and_speed_controls_in_the_settings_flyout(win):
+    from pet_projection_data_visualization.viewmodel import PlayMode
+    win.play_mode_control._buttons[list(PlayMode).index(PlayMode.BOUNCE)].click()
+    assert win.vm.pane.play_mode is PlayMode.BOUNCE
+    win.vm.pane.set_play_mode(PlayMode.LOOP)
+    assert win.play_mode_control.choice() is PlayMode.LOOP
 
 
 def test_user_dragging_levels_makes_them_manual_and_applying_levels_does_not_echo(win):
-    win.hist.setLevels(1.0, 2.0)
-    win._on_user_levels()
-    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == (1.0, 2.0)
-    win.vm.set_value("axial", 2)                     # programmatic setLevels must not re-enter set_manual_levels
-    assert win.vm.levels == (1.0, 2.0)
+    win.pane.hist.setLevels(1.0, 2.0)
+    win.pane._on_user_levels()
+    assert win.vm.pane.level_mode is LevelMode.LOCKED and win.vm.pane.levels == (1.0, 2.0)
+    win.vm.pane.set_value("axial", 2)                     # programmatic setLevels must not re-enter set_manual_levels
+    assert win.vm.pane.levels == (1.0, 2.0)
 
 
 def test_non_tof_data_hides_the_tof_controls(win):
     win.vm.load(non_tof_source())
-    assert win.tof_box.isHidden()
-    assert win.tof_dock.isHidden()
+    assert win.dim_controls["tof"].isHidden() and not win.tof_mode_control.isVisibleTo(win)
+    assert win.pane.tof_dock.isHidden()
 
 
 def test_load_error_is_shown_in_the_banner_and_can_be_dismissed(app):
@@ -119,7 +148,7 @@ def test_empty_state_until_data_is_loaded(app):
     assert w.pages.currentIndex() == w.PAGE_EMPTY
     vm.load(small_demo())
     assert w.pages.currentIndex() == w.PAGE_VIEWER
-    assert w.metrics.pairs() and "Sinogram" in w.chips.texts()
+    assert w.pane.metrics.pairs() and "Sinogram" in w.pane.chips.texts()
     w.close()
 
 
@@ -127,14 +156,14 @@ def test_theme_switch_restyles_without_losing_state(win):
     from pet_projection_data_visualization.view.theme import LIGHT
     win.act_light.setChecked(True)
     assert win.palette_tokens is LIGHT
-    assert win.vm.loaded and win.img.image.shape == (12, 15)
+    assert win.vm.loaded and win.pane.img.image.shape == (12, 15)
 
 
 def test_the_real_histogram_signal_reaches_the_view_model(win):
     """Emits pyqtgraph's own signal: guards against a wrong signal name (which would crash on startup)."""
-    win.hist.setLevels(1.0, 2.0)
-    win.hist.sigLevelChangeFinished.emit(win.hist)
-    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels == (1.0, 2.0)
+    win.pane.hist.setLevels(1.0, 2.0)
+    win.pane.hist.sigLevelChangeFinished.emit(win.pane.hist)
+    assert win.vm.pane.level_mode is LevelMode.LOCKED and win.vm.pane.levels == (1.0, 2.0)
 
 
 def _type_into(edit, text):
@@ -145,12 +174,12 @@ def _type_into(edit, text):
 def test_typed_level_and_path_controls(win, tmp_path):
     import numpy as np
     _type_into(win.level_edits["high"], "123")
-    assert win.vm.level_mode is LevelMode.LOCKED and win.vm.levels[1] == 123.0
+    assert win.vm.pane.level_mode is LevelMode.LOCKED and win.vm.pane.levels[1] == 123.0
     np.save(tmp_path / "a.npy", np.zeros((4, 3, 5), dtype=np.float32))
     win.vm._factory = __import__("pet_projection_data_visualization.sources.loader", fromlist=["x"]).make_source
     win.path_edit.setText(f'  "{tmp_path / "a.npy"}"  ')             # Windows "Copy as path" style
     win._load_typed_path()
-    assert win.vm.dataset.info.num_views == 4 and win.path_edit.text() == str(tmp_path / "a.npy")
+    assert win.vm.pane.dataset.info.num_views == 4 and win.path_edit.text() == str(tmp_path / "a.npy")
 
 
 def test_level_edits_handle_tiny_values_and_snap_back_on_rejection(app):
@@ -161,13 +190,13 @@ def test_level_edits_handle_tiny_values_and_snap_back_on_rejection(app):
     w = ViewerWindow(vm)
     try:
         vm.load(ArraySource({0: np.linspace(1e-9, 5e-8, 4 * 3 * 5, dtype=np.float32).reshape(4, 3, 5)}))
-        lo, hi = vm.levels
+        lo, hi = vm.pane.levels
         assert float(w.level_edits["low"].text()) == pytest.approx(lo, rel=1e-5)
         assert float(w.level_edits["high"].text()) == pytest.approx(hi, rel=1e-5) and hi < 1e-7
         _type_into(w.level_edits["high"], "2.5e-8")
-        assert vm.levels[1] == pytest.approx(2.5e-8)
+        assert vm.pane.levels[1] == pytest.approx(2.5e-8)
         _type_into(w.level_edits["low"], "1")                        # above high: rejected
-        assert vm.levels[0] == pytest.approx(lo)
+        assert vm.pane.levels[0] == pytest.approx(lo)
         assert float(w.level_edits["low"].text()) == pytest.approx(lo, rel=1e-5)   # box snapped back
         _type_into(w.level_edits["low"], "not a number")
         assert float(w.level_edits["low"].text()) == pytest.approx(lo, rel=1e-5)
@@ -187,24 +216,26 @@ def test_arrow_keys_go_to_the_focused_slider_not_the_active_dimension(win, app):
     win.show()
     app.processEvents()
     seg = win.dim_controls["segment"]._slider
-    before = (win.vm.selection.segment, win.vm.selection.axial)
+    before = (win.vm.pane.selection.segment, win.vm.pane.selection.axial)
     seg.setFocus()
     _press(seg, QtCore.Qt.Key.Key_Left)
-    assert win.vm.selection.segment == before[0] - 1 and win.vm.selection.axial == before[1]
+    assert win.vm.pane.selection.segment == before[0] - 1 and win.vm.pane.selection.axial == before[1]
     # focus on something without its own use for arrows (here: a button), the window steps the active dimension
-    win.play_button.setFocus()
-    _press(win.play_button, QtCore.Qt.Key.Key_Left)             # (Right would clamp: axial 3 is the last in segment -1)
-    assert win.vm.selection.axial == before[1] - 1 and win.vm.selection.segment == before[0] - 1
-    _press(win.play_button, QtCore.Qt.Key.Key_PageUp)
-    assert win.vm.selection.segment == before[0]
+    button = win.dim_controls["tof"].play_button
+    button.setFocus()
+    _press(button, QtCore.Qt.Key.Key_Left)             # (Right would clamp: axial 3 is the last in segment -1)
+    assert win.vm.pane.selection.axial == before[1] - 1 and win.vm.pane.selection.segment == before[0] - 1
+    _press(button, QtCore.Qt.Key.Key_PageUp)
+    assert win.vm.pane.selection.segment == before[0]
     win.mode_control._buttons[0].setFocus()                       # Space must not re-click a focused button
     _press(win.mode_control._buttons[0], QtCore.Qt.Key.Key_Space)
-    assert win.vm.playing
+    assert win.vm.pane.playing
     _press(win.mode_control._buttons[0], QtCore.Qt.Key.Key_Space)
-    assert not win.vm.playing
+    assert not win.vm.pane.playing
+    win.rail.open("data")
     win.path_edit.setFocus()                                      # ...but a text field gets its space
     _press(win.path_edit, QtCore.Qt.Key.Key_Space)
-    assert not win.vm.playing and win.path_edit.text().endswith(" ")
+    assert not win.vm.pane.playing and win.path_edit.text().endswith(" ")
 
 
 def test_save_image_writes_a_png(win, tmp_path, monkeypatch):
@@ -215,12 +246,12 @@ def test_save_image_writes_a_png(win, tmp_path, monkeypatch):
 
 
 def _view_range(win):
-    (x0, x1), (y0, y1) = win.plot.getViewBox().viewRange()
+    (x0, x1), (y0, y1) = win.pane.plot.getViewBox().viewRange()
     return x0, x1, y0, y1
 
 
 def _image_extent(win):
-    im = win.vm.image
+    im = win.vm.pane.image
     return im.x0, im.x0 + im.width, im.y0, im.y0 + im.height
 
 
@@ -228,17 +259,17 @@ def test_image_is_fixed_no_zoom_pan_or_menu_but_keeps_axes(win, app):
     win.resize(1200, 800)
     win.show()
     app.processEvents()
-    vb = win.plot.getViewBox()
+    vb = win.pane.plot.getViewBox()
     assert vb.state["mouseEnabled"] == [False, False]
-    assert not win.plot.menuEnabled() and not vb.menuEnabled()
-    assert not win.plot.autoBtn.isVisible()
-    assert win.plot.getAxis("left").isVisible() and win.plot.getAxis("bottom").isVisible()
+    assert not win.pane.plot.menuEnabled() and not vb.menuEnabled()
+    assert not win.pane.plot.autoBtn.isVisible()
+    assert win.pane.plot.getAxis("left").isVisible() and win.pane.plot.getAxis("bottom").isVisible()
     assert _view_range(win) == pytest.approx(_image_extent(win))
 
     # a wheel event over the image must not change the range
     from PySide6 import QtCore, QtGui
     before = _view_range(win)
-    view = win.glw
+    view = win.pane.glw
     centre = view.mapFromScene(vb.mapViewToScene(vb.viewRect().center()))
     ev = QtGui.QWheelEvent(QtCore.QPointF(centre), QtCore.QPointF(view.mapToGlobal(centre)), QtCore.QPoint(0, 0),
                            QtCore.QPoint(0, 240), QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier,
@@ -250,7 +281,7 @@ def test_image_is_fixed_no_zoom_pan_or_menu_but_keeps_axes(win, app):
 
 def test_view_refits_to_the_image_when_the_slice_geometry_changes(win, app):
     for mode in SliceMode:
-        win.vm.set_slice_mode(mode)
+        win.vm.pane.set_slice_mode(mode)
         app.processEvents()
         assert _view_range(win) == pytest.approx(_image_extent(win)), mode
 
@@ -260,24 +291,9 @@ def _settle(app):
         app.processEvents()
 
 
-def test_side_panel_is_wide_in_a_wide_window_and_narrows_in_a_narrow_one(win, app):
-    apply_theme(app)
-    win.show()
-    win.resize(1320, 840)
-    _settle(app)
-    assert win.sidebar.width() == win.sidebar.maximumWidth() >= SIDEBAR_WIDTH  # SIDEBAR_WIDTH unless fonts are wide
-    win.resize(760, 600)
-    _settle(app)
-    side, content = win.sidebar, win.sidebar.widget()
-    assert side.minimumWidth() == 0                                          # a range, not a fixed width
-    # it narrows to its content's minimum; how far depends on the platform's fonts, so compare with the hint
-    assert side.width() == side.minimumSizeHint().width()
-    assert side.maximumWidth() == max(SIDEBAR_WIDTH, side.minimumSizeHint().width())
-    assert side.horizontalScrollBarPolicy() == QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    assert side.viewport().width() >= content.minimumSizeHint().width()       # nothing cut off on the right
-    assert content.height() > side.viewport().height()                       # it scrolls vertically instead
+def test_level_boxes_are_not_fixed_width(win):
     for edit in win.level_edits.values():
-        assert edit.minimumWidth() < edit.maximumWidth()                     # level boxes are not fixed-width
+        assert edit.minimumWidth() < edit.maximumWidth()
 
 
 def test_narrow_window_does_not_cut_off_the_plot_or_the_header(win, app):
@@ -285,10 +301,11 @@ def test_narrow_window_does_not_cut_off_the_plot_or_the_header(win, app):
     win.show()
     win.resize(760, 600)
     _settle(app)
-    scene_min = win.glw.ci.effectiveSizeHint(QtCore.Qt.SizeHint.MinimumSize).width()
-    assert win.glw.width() >= scene_min                                       # histogram fully visible
-    assert win.chips.width() >= win.chips.sizeHint().width()                  # chips are not squeezed
-    assert win.title_label.text() == win.vm.source_label                      # elided on screen, full text kept
+    pane = win.pane
+    scene_min = pane.glw.ci.effectiveSizeHint(QtCore.Qt.SizeHint.MinimumSize).width()
+    assert pane.glw.width() >= scene_min                                      # histogram fully visible
+    assert pane.chips.width() >= pane.chips.sizeHint().width()                # chips are not squeezed
+    assert pane.title_label.text() == win.vm.pane.title                       # elided on screen, full text kept
 
 
 def test_plot_minimum_follows_the_scene_when_its_layout_changes_later(win, app):
@@ -298,31 +315,32 @@ def test_plot_minimum_follows_the_scene_when_its_layout_changes_later(win, app):
     win.show()
     win.resize(760, 600)
     _settle(app)
-    before = win.glw.minimumWidth()
-    win.plot.getAxis("left").setWidth(300)            # what a wider tick label does, without a re-render
+    pane = win.pane
+    before = pane.glw.minimumWidth()
+    pane.plot.getAxis("left").setWidth(300)           # what a wider tick label does, without a re-render
     _settle(app)
-    scene_min = win.glw.ci.effectiveSizeHint(QtCore.Qt.SizeHint.MinimumSize).width()
+    scene_min = pane.glw.ci.effectiveSizeHint(QtCore.Qt.SizeHint.MinimumSize).width()
     assert scene_min > before
-    assert win.glw.minimumWidth() >= scene_min
-    assert win.glw.width() >= scene_min                                       # histogram fully visible
-    win.plot.getAxis("left").setWidth(None)           # back to automatic: the minimum shrinks again
+    assert pane.glw.minimumWidth() >= scene_min
+    assert pane.glw.width() >= scene_min                                      # histogram fully visible
+    pane.plot.getAxis("left").setWidth(None)          # back to automatic: the minimum shrinks again
     _settle(app)
-    assert win.glw.minimumWidth() < scene_min
+    assert pane.glw.minimumWidth() < scene_min
 
 
 # ---- TOF profile plot: x fixed to the TOF bins, mouse acts on y only ---------------------------
 def _tof_x_range(win):
-    return tuple(win.tof_view.viewRange()[0])
+    return tuple(win.pane.tof_view.viewRange()[0])
 
 
 def _tof_y_range(win):
-    win.tof_view.updateAutoRange()
-    return tuple(win.tof_view.viewRange()[1])
+    win.pane.tof_view.updateAutoRange()
+    return tuple(win.pane.tof_view.viewRange()[1])
 
 
 def _wheel_over_tof_plot(win, app, delta=240):
     from PySide6 import QtCore, QtGui
-    vb, view = win.tof_view, win.tof_plot
+    vb, view = win.pane.tof_view, win.pane.tof_plot
     centre = view.mapFromScene(vb.mapViewToScene(vb.viewRect().center()))
     ev = QtGui.QWheelEvent(QtCore.QPointF(centre), QtCore.QPointF(view.mapToGlobal(centre)), QtCore.QPoint(0, 0),
                            QtCore.QPoint(0, delta), QtCore.Qt.MouseButton.NoButton,
@@ -355,10 +373,10 @@ def shown(win, app):
 
 
 def test_tof_plot_mouse_moves_only_y_and_has_no_menu(shown):
-    vb = shown.tof_view
+    vb = shown.pane.tof_view
     assert vb.state["mouseEnabled"] == [False, True]
     assert vb.autoRangeEnabled()[0] is False and vb.autoRangeEnabled()[1]
-    assert not shown.tof_plot.getPlotItem().menuEnabled() and not vb.menuEnabled()
+    assert not shown.pane.tof_plot.getPlotItem().menuEnabled() and not vb.menuEnabled()
 
 
 def test_tof_plot_x_range_matches_the_tof_bins_of_each_dataset(shown, app):
@@ -370,50 +388,50 @@ def test_tof_plot_x_range_matches_the_tof_bins_of_each_dataset(shown, app):
     app.processEvents()
     assert _tof_x_range(shown) == pytest.approx(tof_x_limits(-3, 3))
     assert tof_x_limits(-3, 3)[0] < -3 and tof_x_limits(-3, 3)[1] > 3
-    shown.vm.hover_at(0, 3)
+    shown.vm.pane.hover_at(0, 3)
     app.processEvents()
-    assert shown.vm.tof_profile is not None
+    assert shown.vm.pane.tof_profile is not None
     assert _tof_x_range(shown) == pytest.approx(tof_x_limits(-3, 3))    # a new LOR keeps the x-range
-    shown.vm.hover_at(5, 2)
+    shown.vm.pane.hover_at(5, 2)
     app.processEvents()
     assert _tof_x_range(shown) == pytest.approx(tof_x_limits(-3, 3))
 
 
 def test_tof_plot_wheel_zooms_y_only_and_double_click_or_auto_button_refits(shown, app):
-    shown.vm.hover_at(0, 3)
+    shown.vm.pane.hover_at(0, 3)
     app.processEvents()
     x0, fitted = _tof_x_range(shown), _tof_y_range(shown)
     assert fitted[0] >= 0                             # counts are >= 0: y never shows below 0
 
     _wheel_over_tof_plot(shown, app)
     assert _tof_x_range(shown) == pytest.approx(x0)
-    zoomed = tuple(shown.tof_view.viewRange()[1])
+    zoomed = tuple(shown.pane.tof_view.viewRange()[1])
     assert zoomed[1] - zoomed[0] < fitted[1] - fitted[0]
-    assert not shown.tof_view.autoRangeEnabled()[1]   # the user zoomed: a new profile keeps the zoom
-    shown.vm.hover_at(1, 3)
+    assert not shown.pane.tof_view.autoRangeEnabled()[1]   # the user zoomed: a new profile keeps the zoom
+    shown.vm.pane.hover_at(1, 3)
     app.processEvents()
-    assert tuple(shown.tof_view.viewRange()[1]) == pytest.approx(zoomed)
+    assert tuple(shown.pane.tof_view.viewRange()[1]) == pytest.approx(zoomed)
 
     ev = _DoubleClick()
-    shown.tof_view.mouseClickEvent(ev)
-    assert ev.accepted and shown.tof_view.autoRangeEnabled()[1]
-    assert shown.tof_view.autoRangeEnabled()[0] is False
-    refitted, counts = _tof_y_range(shown), shown.vm.tof_profile.y
+    shown.pane.tof_view.mouseClickEvent(ev)
+    assert ev.accepted and shown.pane.tof_view.autoRangeEnabled()[1]
+    assert shown.pane.tof_view.autoRangeEnabled()[0] is False
+    refitted, counts = _tof_y_range(shown), shown.vm.pane.tof_profile.y
     assert refitted != pytest.approx(zoomed)
     assert refitted[0] <= min(counts) and max(counts) <= refitted[1]   # the whole profile is in view
     assert _tof_x_range(shown) == pytest.approx(x0)
 
     _wheel_over_tof_plot(shown, app)
-    shown.tof_plot.getPlotItem().autoBtnClicked()     # pyqtgraph's "A" button
-    assert shown.tof_view.autoRangeEnabled()[0] is False and shown.tof_view.autoRangeEnabled()[1]
+    shown.pane.tof_plot.getPlotItem().autoBtnClicked()     # pyqtgraph's "A" button
+    assert shown.pane.tof_view.autoRangeEnabled()[0] is False and shown.pane.tof_view.autoRangeEnabled()[1]
     assert _tof_y_range(shown) == pytest.approx(refitted)
     assert _tof_x_range(shown) == pytest.approx(x0)
 
 
 def test_tof_plot_y_cannot_be_panned_below_zero_for_non_negative_counts(shown, app):
-    shown.vm.hover_at(0, 3)
+    shown.vm.pane.hover_at(0, 3)
     app.processEvents()
-    vb = shown.tof_view
+    vb = shown.pane.tof_view
     assert vb.state["limits"]["yLimits"][0] == 0.0
     vb.translateBy(y=-1e6)
     app.processEvents()
@@ -441,23 +459,23 @@ def _asymmetric_source():
 def test_row_0_is_drawn_at_the_top_and_column_0_at_the_left(shown, app, mode, rows, cols):
     win = shown
     win.vm.load(_asymmetric_source())
-    win.vm.set_slice_mode(mode)
+    win.vm.pane.set_slice_mode(mode)
     _settle(app)
-    vb = win.plot.getViewBox()
+    vb = win.pane.plot.getViewBox()
     assert vb.yInverted() and not vb.xInverted()
-    assert win.plot.getAxis("left").labelText == rows[0] and win.plot.getAxis("bottom").labelText == cols[0]
+    assert win.pane.plot.getAxis("left").labelText == rows[0] and win.pane.plot.getAxis("bottom").labelText == cols[0]
     n_rows, n_cols = rows[2] - rows[1] + 1, cols[2] - cols[1] + 1
-    assert win.img.image.shape == (n_rows, n_cols)
-    rect = win.img.mapRectToView(win.img.boundingRect())
+    assert win.pane.img.image.shape == (n_rows, n_cols)
+    rect = win.pane.img.mapRectToView(win.pane.img.boundingRect())
     assert (rect.left(), rect.top(), rect.width(), rect.height()) == pytest.approx(
         (cols[1] - 0.5, rows[1] - 0.5, n_cols, n_rows))           # integer axis values are pixel centres
 
     def scene_of(r, c):         # where the centre of image pixel (row r, column c) lands in the scene
-        p = win.img.mapToScene(QtCore.QPointF(c + 0.5, r + 0.5))
+        p = win.pane.img.mapToScene(QtCore.QPointF(c + 0.5, r + 0.5))
         return p.x(), p.y()
 
     def axes_of(r, c):          # the axis values at that pixel centre
-        p = vb.mapSceneToView(win.img.mapToScene(QtCore.QPointF(c + 0.5, r + 0.5)))
+        p = vb.mapSceneToView(win.pane.img.mapToScene(QtCore.QPointF(c + 0.5, r + 0.5)))
         return p.x(), p.y()
 
     top_left, bottom_left, top_right = scene_of(0, 0), scene_of(n_rows - 1, 0), scene_of(0, n_cols - 1)

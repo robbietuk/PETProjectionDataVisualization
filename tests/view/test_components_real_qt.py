@@ -87,6 +87,40 @@ def test_card_title_and_body(app):
     assert card.body.count() == 1
 
 
+def test_a_long_card_title_wraps_instead_of_widening_the_card(app):
+    short, long = ui.Card("TOF profile"), ui.Card("TOF profile of the frozen LOR (click or Esc releases)")
+    assert long.title_label.wordWrap()
+    assert long.minimumSizeHint().width() <= short.minimumSizeHint().width() + 40
+
+
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
+def test_compact_buttons_are_as_wide_as_their_text_in_any_style(app, style):
+    """Fusion and the Windows styles make a push button with text at least 75-80 px wide; a row of
+    ‹ › ▶ and Bin | Sum | Mean | Max then made the window wider than a laptop screen (Windows CI)."""
+    if style.lower() not in [k.lower() for k in QtWidgets.QStyleFactory.keys()]:
+        pytest.skip(f"no {style} style here")
+    old_style, old_sheet = app.style().name(), app.styleSheet()
+    app.setStyleSheet("")
+    app.setStyle(style)
+    try:
+        for text in ("‹", "›", ui.PLAY_TEXT, ui.PAUSE_TEXT, "Bin"):
+            plain, compact = QtWidgets.QPushButton(text), ui.CompactButton(text)
+            limit = compact.fontMetrics().horizontalAdvance(text) + 2 * ui.COMPACT_BUTTON_PAD
+            assert compact.sizeHint().width() <= limit < plain.sizeHint().width()
+            assert compact.minimumSizeHint().width() <= limit
+            assert compact.sizeHint().height() == plain.sizeHint().height()
+        row = ui.AxisRowControl(ui.SegmentedControl(SLICE_MODE_OPTIONS))
+        for b in (row._prev, row._next, row.play_button):
+            assert isinstance(b, ui.CompactButton) and b.sizeHint().width() < 60
+        # the stylesheet's own (smaller) width is kept
+        app.setStyleSheet("QPushButton { padding: 0 1px; min-width: 4px; border: 1px solid gray; }")
+        b, plain = ui.CompactButton("Bin"), QtWidgets.QPushButton("Bin")
+        assert b.sizeHint().width() == plain.sizeHint().width()
+    finally:
+        app.setStyle(old_style)
+        app.setStyleSheet(old_sheet)
+
+
 def test_empty_state_actions_call_back(app):
     es = ui.EmptyState("t", "h")
     hits = []
@@ -102,14 +136,31 @@ def test_empty_state_keeps_qwidget_actions(app):
     assert es.actions() == [] and es.action_row.indexOf(btn) == 0
 
 
-def test_dimension_control_emits_only_for_user_edits(app):
-    ctrl = ui.DimensionControl()
-    seen = []
+def test_axis_row_emits_only_for_user_input(app):
+    ctrl = ui.AxisRowControl()
+    seen, steps, plays = [], [], []
     ctrl.userChanged.connect(seen.append)
-    ctrl.show_state("Axial", 0, 7, 3, True)
-    assert seen == [] and ctrl._spin.value() == 3 and ctrl._range.text().startswith("0")
+    ctrl.stepRequested.connect(steps.append)
+    ctrl.playClicked.connect(lambda: plays.append(True))
+    ctrl.show_row("Axial position", 0, 7, 3, True, True, "Play through axial position 0 to 7", False)
+    assert seen == [] and ctrl._spin.value() == 3 and ctrl._slider.maximum() == 7
+    assert ctrl.play_button.text() == ui.PLAY_TEXT and ctrl.play_button.toolTip().startswith("Play through")
     ctrl._spin.setValue(5)
     assert seen == [5] and ctrl._slider.value() == 5
+    ctrl._prev.click()
+    ctrl._next.click()
+    ctrl.play_button.click()
+    assert steps == [-1, 1] and plays == [True]
+
+
+def test_axis_row_shows_playing_disabled_and_the_ends_of_the_range(app):
+    ctrl = ui.AxisRowControl(extra=QtWidgets.QLabel("extra"))
+    ctrl.show_row("TOF bin", 0, 4, 0, True, True, "", True)
+    assert ctrl.play_button.isChecked() and ctrl.play_button.text() == ui.PAUSE_TEXT
+    assert not ctrl._prev.isEnabled() and ctrl._next.isEnabled()          # at the first bin
+    ctrl.show_row("TOF bin", 0, 4, 2, False, False, "choose Bin", False)
+    assert not ctrl._spin.isEnabled() and not ctrl.play_button.isEnabled() and ctrl.extra.isEnabled()
+    assert ctrl.play_button.toolTip() == "choose Bin" and not ctrl._prev.isEnabled()
 
 
 def test_apply_theme_installs_stylesheet_and_palette(app):

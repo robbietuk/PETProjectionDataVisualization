@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     window.resize(1200, 800)
     window.show()
     for mode in SliceMode:
-        vm.set_slice_mode(mode)
+        vm.pane.set_slice_mode(mode)
         app.processEvents()
         if vm.error:
             print(f"{mode}: {vm.error}", file=sys.stderr)

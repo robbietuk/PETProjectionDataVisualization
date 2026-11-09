@@ -4,8 +4,10 @@
 no view-model code (enforced by tests/test_architecture.py)."""
 from .dataset import ProjDataset
 from .info import ProjDataInfo, ProjDataSource
+from .profiles import axis_profile, line_profile, sample_bilinear
 from .selection import DIMENSIONS, Selection, SliceMode, TofMode
 from .slices import SliceImage, SliceStats, compute_stats, finite_range
 
 __all__ = ["DIMENSIONS", "ProjDataInfo", "ProjDataSource", "ProjDataset", "Selection",
-           "SliceImage", "SliceMode", "SliceStats", "TofMode", "compute_stats", "finite_range"]
+           "SliceImage", "SliceMode", "SliceStats", "TofMode", "axis_profile", "compute_stats", "finite_range",
+           "line_profile", "sample_bilinear"]
