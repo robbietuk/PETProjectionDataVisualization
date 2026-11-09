@@ -3,8 +3,9 @@
 """VIEWMODEL layer: one projection data pane, the self-contained display of one data set.
 
 A pane owns everything about the data set it shows: the selection (slice mode, indices, TOF mode),
-the display (colour map, log display, colour levels and their lock), the hover readout, the TOF
-profile and playback.
+the display (colour map, log display, colour levels and their lock), the hover readout (and the corner
+it floats in), the profiles (the TOF profile and the Row | Column | Free line profile, see ``profiles``;
+a click freezes them at one LOR, ``release_freeze`` lets them follow the cursor again) and playback.
 
 The slice toolbar has one row (``axis_rows``) per axis not shown in the image: the segment, the fixed
 axis of the image type and, for TOF data, the TOF bin. Each row can play its axis; only one plays at a
@@ -27,6 +28,8 @@ from . import formatting
 from .observable import Observed, ObservableObject
 from .options import COLORMAPS, LevelMode
 from .playback import PlayMode, next_play_value
+from .profiles import (FreeLine, LineMode, LineProfile, Lor, TofProfile, default_free_line, image_position,
+                       line_axis_names, line_profile_for, lor_at, tof_profile)
 from .readout import DEFAULT_CORNER, Corner, readout_corner
 
 DIM_LABELS = {
@@ -89,13 +92,6 @@ class DisplayImage:
     height: float
     row_label: str
     col_label: str
-    title: str
-
-
-@dataclass(frozen=True)
-class TofProfile:
-    x: tuple[int, ...]
-    y: tuple[float, ...]
     title: str
 
 
@@ -167,6 +163,13 @@ class ProjectionPaneViewModel(ObservableObject):
     readout: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) of the bin under the cursor
     readout_corner: Observed[Corner] = Observed(DEFAULT_CORNER)     # where the readout floats over the image
     tof_profile: Observed[TofProfile | None] = Observed(None)
+    show_line_profile: Observed[bool] = Observed(True)
+    line_mode: Observed[LineMode] = Observed(LineMode.ROW)    # the default reads along tangential (sinogram, viewgram)
+    line_axis_names: Observed[tuple[str, str]] = Observed(("", ""))   # what ROW and COLUMN read, e.g. "along tangential"
+    free_line: Observed[FreeLine | None] = Observed(None)      # the FREE line on the image; None in other modes
+    show_tof_overlay: Observed[bool] = Observed(False)         # one faint line-profile curve per TOF bin
+    line_profile: Observed[LineProfile | None] = Observed(None)
+    frozen_at: Observed[tuple[float, float] | None] = Observed(None)   # where the frozen LOR is on the image
     metrics: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) for the current slice
     context: Observed[tuple[str, ...]] = Observed(())   # chips describing the current selection
 
@@ -182,6 +185,8 @@ class ProjectionPaneViewModel(ObservableObject):
         self._lock: _LevelLock | None = None      # set exactly when level_mode is LOCKED
         self._last_pixel: tuple[int, int] | None = None
         self._cursor: tuple[float, float] | None = None     # last hover position in axis coordinates
+        self._frozen: Lor | None = None           # the LOR the profiles keep while frozen (a click)
+        self._free_line_axes: tuple[str, str] | None = None   # the image axes the free line was drawn on
         self._last_play_axis: str | None = None   # the axis whose play button was pressed last
         self._play_direction = 1                  # +1 or -1; turns round at the ends in BOUNCE mode
 
@@ -237,6 +242,9 @@ class ProjectionPaneViewModel(ObservableObject):
         self.readout = ()
         self.readout_corner = DEFAULT_CORNER
         self._cursor = None
+        self._frozen = None
+        self._free_line_axes = None
+        self.free_line = None
         self._commit(dataset, selection, rendered)
         return was_locked
 
@@ -300,6 +308,65 @@ class ProjectionPaneViewModel(ObservableObject):
     def set_show_tof_profile(self, shown: bool) -> None:
         """Show or hide the TOF profile plot (it is never shown for non-TOF data)."""
         self.show_tof_profile = bool(shown)
+
+    @_command
+    def set_show_line_profile(self, shown: bool) -> None:
+        """Show or hide the line profile plot."""
+        self.show_line_profile = bool(shown)
+
+    @_command
+    def set_line_mode(self, mode: LineMode) -> None:
+        """ROW or COLUMN through the cursor (or the frozen LOR), or FREE along a line drawn on the image."""
+        self.line_mode = LineMode(mode)
+        if self._ready():
+            self._update_free_line()
+            self._update_line_profile()
+
+    @_command
+    def set_free_line(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        """The user moved the free line (axis coordinates of the image)."""
+        line = (float(x0), float(y0), float(x1), float(y1))
+        if self.line_mode is not LineMode.FREE or not all(np.isfinite(line)) or not self._ready():
+            return
+        self.free_line = line
+        self._update_line_profile()
+
+    @_command
+    def set_show_tof_overlay(self, shown: bool) -> None:
+        """Add one faint curve per TOF bin to the line profile (TOF data only)."""
+        self.show_tof_overlay = bool(shown)
+        if self._ready():
+            self._update_line_profile()
+
+    @_command
+    def click_at(self, x: float, y: float) -> None:
+        """A click on the image: freeze the profiles at the LOR there, or release them if they are frozen."""
+        if self._frozen is not None:
+            self.release_freeze()
+        elif self._slice is not None and self._ready():
+            row, col = self._slice.pixel_from_axes(x, y)
+            if self._slice.value_at(row, col) is not None:
+                self._freeze(lor_at(self._loaded()[1], self._slice, row, col))
+
+    @_command
+    def toggle_freeze(self) -> None:
+        """The keyboard's click: release, or freeze at the cursor (the centre of the image without one)."""
+        if self._frozen is not None:
+            self.release_freeze()
+        elif (im := self.image) is not None:
+            x, y = self._cursor if self._cursor is not None else (im.x0 + im.width / 2, im.y0 + im.height / 2)
+            self.click_at(x, y)
+
+    @_command
+    def release_freeze(self) -> None:
+        """Esc: the profiles follow the cursor again."""
+        if self._frozen is None:
+            return
+        self._frozen = None
+        self.frozen_at = None
+        self._on_status("Profiles follow the cursor")
+        if self._ready():
+            self._update_profiles()
 
     @_command
     def set_fps(self, fps: int) -> None:
@@ -423,9 +490,10 @@ class ProjectionPaneViewModel(ObservableObject):
             return
         self.pixel_text = formatting.format_pixel(image, row, col, value)
         self.readout = formatting.format_readout(dataset.info, sel, image, row, col, value)
-        if dataset.info.is_tof and (row, col) != self._last_pixel:
+        if (row, col) != self._last_pixel:
             self._last_pixel = (row, col)
-            self._update_tof_profile(image.indices_at(row, col))
+            if self._frozen is None:          # frozen profiles keep their LOR while the cursor moves
+                self._update_profiles()
 
     # ---- internals ---------------------------------------------------------------------
     def _ready(self) -> bool:
@@ -505,12 +573,15 @@ class ProjectionPaneViewModel(ObservableObject):
             (formatting.format_level_lock(*rendered.levels, self.log_display),) if self._lock is not None else ())
         self.info_text = (formatting.describe_dataset(info) + "\n\n"
                           + formatting.describe_slice(image, rendered.stats))
-        # the LOR under a resting cursor changes with the selection: recompute readout and profile
+        self.line_axis_names = line_axis_names(image)
+        self._update_free_line()
+        self.frozen_at = image_position(image, self._frozen) if self._frozen is not None else None
+        # the LOR under a resting cursor changes with the selection: recompute readout and profiles
         self._last_pixel = None
         if self._cursor is not None:
             self._hover(*self._cursor)
-        else:
-            self.tof_profile = None
+        if self._last_pixel is None:          # no cursor on the image, or frozen: not updated by _hover
+            self._update_profiles()
 
     def _set_play_axis(self, dim: str | None) -> None:
         self.play_axis = dim
@@ -561,16 +632,57 @@ class ProjectionPaneViewModel(ObservableObject):
             hi = lo + _min_span(lo)
         return _Rendered(image, disp, (float(lo), float(hi)), dataset.stats(image))
 
-    def _update_tof_profile(self, indices: dict[str, int]) -> None:
+    def _probe(self) -> Lor | None:
+        """The LOR the profiles read: the frozen one, else the one under the cursor (None if off the image)."""
+        if self._frozen is not None:
+            return self._frozen
+        image, (_, sel) = self._slice, self._loaded()
+        if image is None or self._cursor is None:
+            return None
+        row, col = image.pixel_from_axes(*self._cursor)
+        return lor_at(sel, image, row, col) if image.value_at(row, col) is not None else None
+
+    def _update_profiles(self) -> None:
         dataset, sel = self._loaded()
-        lor = {d: sel.get(d) for d in ("view", "axial", "tangential")}
-        lor.update(indices)
+        lor = self._probe()
+        if not dataset.info.is_tof or lor is None:
+            self.tof_profile = None
+        else:
+            try:
+                self.tof_profile = tof_profile(dataset, sel, lor)
+            except Exception as exc:  # noqa: BLE001
+                self._report_error(f"TOF profile unavailable: {exc}")
+        self._update_line_profile(lor)
+
+    def _update_line_profile(self, lor: Lor | None = None) -> None:
+        dataset, sel = self._loaded()
+        image = self._slice
+        assert image is not None, "a slice is shown whenever data is loaded"
         try:
-            prof = dataset.tof_profile(sel.segment, lor["view"], lor["axial"], lor["tangential"])
+            self.line_profile = line_profile_for(dataset, sel, image, self.line_mode, lor or self._probe(),
+                                                 self.free_line, self.show_tof_overlay)
         except Exception as exc:  # noqa: BLE001
-            self._report_error(f"TOF profile unavailable: {exc}")
+            self.line_profile = None
+            self._report_error(f"Line profile unavailable: {exc}")
+
+    def _update_free_line(self) -> None:
+        """A free line exists in FREE mode only; it starts across the image, and again when the image
+        axes change (a line drawn on a sinogram means nothing on a viewgram)."""
+        image = self._slice
+        if self.line_mode is not LineMode.FREE or image is None:
+            self.free_line = None
+            self._free_line_axes = None
             return
-        self.tof_profile = TofProfile(
-            tuple(dataset.info.tof_bins), tuple(float(v) for v in prof),
-            formatting.format_profile_title(sel.segment, lor["view"], lor["axial"], lor["tangential"],
-                                            float(prof.sum())))
+        axes = (image.row_axis, image.col_axis)
+        if self.free_line is None or self._free_line_axes != axes:
+            self.free_line = default_free_line(image)
+            self._free_line_axes = axes
+
+    def _freeze(self, lor: Lor) -> None:
+        image = self._slice
+        assert image is not None, "a slice is shown whenever data is loaded"
+        self._frozen = lor
+        self.frozen_at = image_position(image, lor)
+        self._on_status("Profiles frozen at segment {segment}, view {view}, axial {axial}, tangential {tangential}"
+                        " (click again or press Esc to release)".format(**lor))
+        self._update_profiles()

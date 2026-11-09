@@ -80,6 +80,16 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   axis played last, and the toolbar says which. The TOF row holds Bin | Sum | Mean | Max; its play
   button is disabled while TOF is collapsed, with a tooltip saying why. *Settings* chooses whether
   playback loops round or bounces back at the end of an axis.
+- **Profiles (#36, phase 5).** A *line profile* plot under the TOF profile, with a *Row | Column |
+  Free* toggle. Row and Column read the exact bins of the image row or column through the cursor,
+  named for the image type ("along tangential" on a sinogram or viewgram, the default); Free reads
+  along a line you drag on the image (with handles to move its ends), interpolated, against the
+  distance in bins. It shows the image as displayed (a single TOF bin, or Sum/Mean/Max), and *per
+  TOF bin* adds one faint curve per TOF bin along the same line. While TOF is collapsed, the TOF
+  profile is still shown, labelled as context ("TOF bins at this LOR (the image shows their Sum: …)"),
+  with the collapsed value as a dashed reference line. A click on the image freezes both profiles at
+  that LOR, marked on the image, while you change slices; another click or Esc releases them (key
+  `F` freezes and releases from the keyboard).
 
 ### Fixed
 

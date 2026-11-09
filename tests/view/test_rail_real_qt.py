@@ -233,20 +233,25 @@ def test_the_theme_control_and_the_view_menu_stay_in_step(win):
     assert win.palette_tokens is DARK and win.theme_control.choice() == "dark"
 
 
-def test_settings_flyout_hides_and_shows_the_tof_profile(win):
-    assert win.tof_profile_switch.isChecked() and not win.pane.plot_column.isHidden()
+def test_settings_flyout_hides_and_shows_the_profile_plots(win):
+    assert win.tof_profile_switch.isChecked() and win.line_profile_switch.isChecked()
+    assert not win.pane.plot_column.isHidden()
     width = win.pane.glw.width()
     win.tof_profile_switch.setChecked(False)
     QtWidgets.QApplication.processEvents()
-    assert not win.vm.pane.show_tof_profile and win.pane.plot_column.isHidden()
+    assert not win.vm.pane.show_tof_profile and win.pane.tof_dock.isHidden() and not win.pane.plot_column.isHidden()
+    win.line_profile_switch.setChecked(False)
+    QtWidgets.QApplication.processEvents()
+    assert not win.vm.pane.show_line_profile and win.pane.plot_column.isHidden()
     assert win.pane.glw.width() > width                      # the image takes the room
     win.tof_profile_switch.setChecked(True)
-    assert not win.pane.plot_column.isHidden()
+    win.line_profile_switch.setChecked(True)
+    assert not win.pane.plot_column.isHidden() and not win.pane.tof_dock.isHidden()
 
 
 def test_the_tof_profile_switch_is_disabled_for_non_tof_data(win):
     win.vm.load(non_tof_source())
-    assert not win.tof_profile_switch.isEnabled() and win.pane.plot_column.isHidden()
+    assert not win.tof_profile_switch.isEnabled() and win.pane.tof_dock.isHidden()
 
 
 def test_settings_flyout_lists_the_keyboard_shortcuts(win):

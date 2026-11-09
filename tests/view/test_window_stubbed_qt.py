@@ -77,6 +77,7 @@ def window_module(monkeypatch):
     module = importlib.import_module("pet_projection_data_visualization.view.window")
     pane_module = importlib.import_module("pet_projection_data_visualization.view.pane")
     pane_module.fit_graphics_width = lambda widget: None    # real Qt geometry arithmetic; test_window_real_qt covers it
+    pane_module.style_line_roi = lambda roi, palette: None   # iterates real ROI handles; the real-Qt tests cover it
     yield module
     for name in _view_modules():
         sys.modules.pop(name, None)       # never leave stub-bound modules behind for later tests
@@ -404,7 +405,7 @@ def test_theme_switch_applies_stylesheet_and_restyles_every_plot(window_module):
     pane_module.style_graphics_widget = lambda w, pal: calls.append(("glw", pal.name))
     h.win.set_palette(window_module.LIGHT)
     kinds = [k for k, name in calls if name == "light"]
-    assert kinds.count("plot") == 2 and {"theme", "hist", "glw"} <= set(kinds)
+    assert kinds.count("plot") == 3 and {"theme", "hist", "glw"} <= set(kinds)   # image, TOF and line profiles
 
 
 def test_tof_profile_is_cleared_when_the_view_model_clears_it(window_module):

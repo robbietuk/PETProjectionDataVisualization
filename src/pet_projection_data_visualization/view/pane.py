@@ -4,7 +4,9 @@
 A pane shows what its ``ProjectionPaneViewModel`` holds: the title and context chips, the image with
 its colour bar (histogram) and, beside it, the colour level controls (Adaptive | Locked, Max, Min and
 the global range), the cursor readout floating in a corner of the image, the slice metrics and, in a
-resizable column on the right, the profile plots (today the TOF profile). It binds only to its own view model and knows
+resizable column on the right, the profile plots: the TOF profile and the line profile (Row | Column |
+Free, with an optional curve per TOF bin). A click on the image freezes both profiles at that LOR,
+marked on the image; another click (or the view model's ``release_freeze``) releases them. It binds only to its own view model and knows
 nothing about the window, the rail or the toolbar, so a window can later hold several panes (#20).
 """
 from __future__ import annotations
@@ -13,19 +15,22 @@ import numpy as np
 import pyqtgraph as pg
 from typing import Callable, ParamSpec
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..viewmodel import LEVEL_MODE_OPTIONS, BindingRegistry, Corner, LevelMode, ProjectionPaneViewModel
+from ..viewmodel import (LEVEL_MODE_OPTIONS, LINE_MODE_OPTIONS, BindingRegistry, Corner, LevelMode, LineMode,
+                         ProjectionPaneViewModel)
 from . import components as ui
 from ._compat import override
-from .styling import fit_graphics_width, style_graphics_widget, style_histogram, style_plot
+from .styling import fit_graphics_width, style_graphics_widget, style_histogram, style_line_roi, style_plot
 from .theme import DARK, GAP, Palette
 from .tof_plot import TofViewBox
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
 
-PLOT_COLUMN_WIDTH = 340       # initial width of the profile plot column; the splitter resizes it
+PLOT_COLUMN_WIDTH = 300       # initial width of the profile plot column; the splitter resizes it
 NO_PROFILE = "hover over the image"
+NO_LINE_PROFILE = "hover over the image, or choose Free and drag the line"
+OVERLAY_ALPHA = 70            # 0-255: the per-TOF-bin curves are faint, behind the profile of the image
 READOUT_MARGIN = 8            # between the readout and the edges of the image
 LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
                   "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
@@ -62,6 +67,7 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self._applying_levels = False
         self._levels_from_histogram = False     # set while a histogram drag is handed to the view model
         self._painted_levels: tuple[float, float] | None = None
+        self._painting_free_line = False        # set while the view model's free line is drawn (no echo)
         self._build()
         self._restyle_plots()
         self.bindings = BindingRegistry(vm)
@@ -113,6 +119,16 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.glw.addItem(self.hist, row=0, col=1)
         self.hist.sigLevelChangeFinished.connect(self._on_user_levels)
         self.plot.scene().sigMouseMoved.connect(self._on_mouse_moved)
+        self.plot.scene().sigMouseClicked.connect(self._on_mouse_clicked)
+        # the frozen LOR (a click) and the free line of the line profile, drawn on the image
+        self.freeze_marker = pg.ScatterPlotItem(symbol="+", size=22)
+        self.freeze_marker.setZValue(10)
+        self.plot.addItem(self.freeze_marker)
+        self.free_roi = pg.LineSegmentROI([(0.0, 0.0), (1.0, 1.0)], movable=True)
+        self.free_roi.setZValue(11)
+        self.free_roi.setVisible(False)
+        self.free_roi.sigRegionChangeFinished.connect(self._on_free_line_moved)
+        self.plot.addItem(self.free_roi)
         # the value under the cursor floats over a corner of the image, out of the cursor's way
         self.readout = QtWidgets.QLabel("", self.glw)
         self.readout.setObjectName("PixelReadout")
@@ -176,6 +192,20 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.plot_column = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.plot_column.setObjectName("PlotColumn")
         self.plot_column.setChildrenCollapsible(False)
+        self.plot_column.addWidget(self._build_tof_dock())
+        self.plot_column.addWidget(self._build_line_dock())
+        return self.plot_column
+
+    @staticmethod
+    def _caption(text: str) -> QtWidgets.QLabel:
+        # long texts go in wrapping labels, not plot titles: a long pyqtgraph title sets a minimum width
+        # for the whole plot, which then overflows a narrow plot column
+        label = QtWidgets.QLabel(text)
+        label.setObjectName("Muted")
+        label.setWordWrap(True)
+        return label
+
+    def _build_tof_dock(self) -> QtWidgets.QWidget:
         self.tof_dock = ui.Card("TOF profile of the LOR under the cursor")
         # x (TOF bin) is fixed to the data set's bins; wheel, drag, double-click and "A" act on y (counts)
         self.tof_view = TofViewBox()
@@ -184,18 +214,46 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.tof_plot.setLabel("bottom", "TOF bin")
         self.tof_plot.setLabel("left", "counts")
         self.tof_plot.setMinimumHeight(150)
-        # the LOR is named in a wrapping label, not the plot title: a long pyqtgraph title sets a minimum
-        # width for the whole plot, which then overflows a narrow plot column
-        self.tof_title = QtWidgets.QLabel(NO_PROFILE)
-        self.tof_title.setObjectName("Muted")
-        self.tof_title.setWordWrap(True)
+        self.tof_title = self._caption(NO_PROFILE)
+        self.tof_context = self._caption("")           # while TOF is collapsed: the plot is context
+        self.tof_context.setVisible(False)
         self.tof_curve = self.tof_plot.plot([], [], symbol="o", symbolSize=7)
         self.tof_marker_line = pg.InfiniteLine(angle=90, movable=False)
         self.tof_plot.addItem(self.tof_marker_line)
+        self.tof_reference_line = pg.InfiniteLine(angle=0, movable=False)   # the Sum/Mean/Max the image shows
+        self.tof_reference_line.setVisible(False)
+        self.tof_plot.addItem(self.tof_reference_line)
         self.tof_dock.body.addWidget(self.tof_title)
+        self.tof_dock.body.addWidget(self.tof_context)
         self.tof_dock.body.addWidget(self.tof_plot, 1)
-        self.plot_column.addWidget(self.tof_dock)
-        return self.plot_column
+        return self.tof_dock
+
+    def _build_line_dock(self) -> QtWidgets.QWidget:
+        self.line_dock = ui.Card("Line profile")
+        header = QtWidgets.QHBoxLayout()
+        header.setSpacing(8)
+        self.line_mode_control = ui.SegmentedControl(LINE_MODE_OPTIONS)
+        self.line_mode_control.setAccessibleName("Line profile: along the row or column through the cursor, "
+                                                 "or along a free line")
+        self.line_mode_control.choiceChanged.connect(self._on_line_mode)
+        self.overlay_switch = QtWidgets.QCheckBox("per TOF bin")
+        self.overlay_switch.setToolTip("Also draw one faint curve per TOF bin along the same line")
+        self.overlay_switch.toggled.connect(self._on_overlay_toggled)
+        header.addWidget(self.line_mode_control)
+        header.addStretch(1)
+        self.line_dock.body.addLayout(header)
+        self.line_dock.body.addWidget(self.overlay_switch)       # its own line: the column stays narrow
+        self.line_title = self._caption(NO_LINE_PROFILE)
+        self.line_dock.body.addWidget(self.line_title)
+        self.line_plot = pg.PlotWidget()
+        self.line_plot.getPlotItem().setMenuEnabled(False)
+        self.line_plot.setLabel("left", "value")
+        self.line_plot.setMinimumHeight(150)
+        self.line_curve = self.line_plot.plot([], [], connect="finite")
+        self.line_curve.setZValue(5)                  # above the per-TOF-bin curves
+        self.overlay_curves: list[pg.PlotDataItem] = []
+        self.line_dock.body.addWidget(self.line_plot, 1)
+        return self.line_dock
 
     # ------------------------------------------------------------------ theming
     def set_palette(self, palette: Palette) -> None:
@@ -213,6 +271,14 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.tof_curve.setSymbolBrush(p.curve)
         self.tof_curve.setSymbolPen(p.curve)
         self.tof_marker_line.setPen(pg.mkPen(p.marker, width=2))
+        self.tof_reference_line.setPen(pg.mkPen(p.marker, width=2, style=QtCore.Qt.PenStyle.DashLine))
+        style_plot(self.line_plot.getPlotItem(), p)
+        self.line_plot.setBackground(p.surface)
+        self.line_curve.setPen(pg.mkPen(p.curve, width=2))
+        for curve in self.overlay_curves:
+            curve.setPen(self._overlay_pen())
+        self.freeze_marker.setPen(pg.mkPen(p.marker, width=3))
+        style_line_roi(self.free_roi, p)
         fit_graphics_width(self.glw)       # the plot title or the axes may have changed
 
     # ------------------------------------------------------------------ user input -> commands
@@ -236,6 +302,34 @@ class ProjectionDataPane(QtWidgets.QWidget):
             finally:
                 self._levels_from_histogram = False
 
+    def _on_line_mode(self, mode: LineMode) -> None:
+        self._run(self.vm.set_line_mode, mode)
+
+    def _on_overlay_toggled(self, on: bool) -> None:
+        self._run(self.vm.set_show_tof_overlay, on)
+
+    def _overlay_pen(self) -> QtGui.QPen:
+        colour = QtGui.QColor(self.palette_tokens.curve)
+        colour.setAlpha(OVERLAY_ALPHA)
+        return pg.mkPen(colour, width=1)
+
+    def _on_free_line_moved(self) -> None:
+        if self._painting_free_line:
+            return
+        (x0, y0), (x1, y1) = ((q.x(), q.y()) for q in
+                              (self.free_roi.mapToParent(handle.pos()) for handle in self.free_roi.getHandles()))
+        self.vm.set_free_line(x0, y0, x1, y1)
+
+    def _on_mouse_clicked(self, event: pg.MouseClickEvent) -> None:
+        """A left click on the image freezes the profiles there, or releases them."""
+        if event.button() != QtCore.Qt.MouseButton.LeftButton or event.double():
+            return
+        vb = self.plot.vb
+        scene_pos = event.scenePos()
+        if vb.sceneBoundingRect().contains(scene_pos):
+            p = vb.mapSceneToView(scene_pos)
+            self.vm.click_at(p.x(), p.y())
+
     def _on_mouse_moved(self, scene_pos: QtCore.QPointF) -> None:
         vb = self.plot.vb
         if vb.sceneBoundingRect().contains(scene_pos):
@@ -258,6 +352,14 @@ class ProjectionDataPane(QtWidgets.QWidget):
         b("pixel_text", lambda: self.readout.setAccessibleDescription(self.vm.pixel_text))   # one line for screen readers
         b("tof_range", self._paint_tof_range)
         b("tof_profile", self._paint_tof_profile)
+        b(("show_line_profile", "tof_available", "show_tof_profile"), self._paint_line_available)
+        b("line_mode", lambda: self.line_mode_control.set_choice(self.vm.line_mode))
+        b("line_axis_names", self._paint_line_axis_names)
+        b("show_tof_overlay", lambda: ui.silently(
+            self.overlay_switch, lambda: self.overlay_switch.setChecked(self.vm.show_tof_overlay)))
+        b("free_line", self._paint_free_line)
+        b("line_profile", self._paint_line_profile)
+        b("frozen_at", self._paint_frozen)
         b("tof_marker", self._paint_tof_marker)
         b("metrics", lambda: self.metrics.set_metrics(self.vm.metrics))
         b("context", lambda: self.chips.set_chips(self.vm.context))
@@ -293,9 +395,59 @@ class ProjectionDataPane(QtWidgets.QWidget):
         return False
 
     def _paint_tof_available(self) -> None:
-        shown = self.vm.tof_available and self.vm.show_tof_profile
-        self.tof_dock.setVisible(shown)
-        self.plot_column.setVisible(shown)    # no profile to show: the image takes the room
+        self.tof_dock.setVisible(self.vm.tof_available and self.vm.show_tof_profile)
+
+    def _paint_line_available(self) -> None:
+        self.line_dock.setVisible(self.vm.show_line_profile)
+        self.overlay_switch.setVisible(self.vm.tof_available)
+        tof_shown = self.vm.tof_available and self.vm.show_tof_profile
+        self.plot_column.setVisible(tof_shown or self.vm.show_line_profile)   # no plots: the image takes the room
+
+    def _paint_line_axis_names(self) -> None:
+        row, column = self.vm.line_axis_names
+        for mode, tip in ((LineMode.ROW, row), (LineMode.COLUMN, column),
+                          (LineMode.FREE, "along a line you drag on the image")):
+            self.line_mode_control.set_choice_tooltip(mode, tip.capitalize())
+
+    def _paint_free_line(self) -> None:
+        line = self.vm.free_line
+        self.free_roi.setVisible(line is not None)
+        if line is None:
+            return
+        x0, y0, x1, y1 = line
+        self._painting_free_line = True
+        try:
+            for handle, (x, y) in zip(self.free_roi.getHandles(), ((x0, y0), (x1, y1))):
+                self.free_roi.movePoint(handle, QtCore.QPointF(x, y), finish=False)   # view coordinates
+        finally:
+            self._painting_free_line = False
+
+    def _paint_line_profile(self) -> None:
+        prof = self.vm.line_profile
+        if prof is None:
+            self.line_curve.setData([], [])
+            self._set_overlay(())
+            self.line_title.setText(NO_LINE_PROFILE)
+            return
+        self.line_curve.setData(list(prof.x), list(prof.y))
+        self._set_overlay(tuple((prof.x, y) for y in prof.overlay))
+        self.line_plot.setLabel("bottom", prof.x_label)
+        self.line_title.setText(prof.title)
+
+    def _set_overlay(self, curves: tuple[tuple[tuple[float, ...], tuple[float, ...]], ...]) -> None:
+        while len(self.overlay_curves) > len(curves):
+            self.line_plot.removeItem(self.overlay_curves.pop())
+        while len(self.overlay_curves) < len(curves):
+            curve = self.line_plot.plot([], [], connect="finite", pen=self._overlay_pen())
+            self.overlay_curves.append(curve)
+        for curve, (x, y) in zip(self.overlay_curves, curves):
+            curve.setData(list(x), list(y))
+
+    def _paint_frozen(self) -> None:
+        at = self.vm.frozen_at
+        self.freeze_marker.setData([] if at is None else [at[0]], [] if at is None else [at[1]])
+        self.tof_dock.set_title("TOF profile of the frozen LOR (click or Esc releases)" if at is not None
+                                else "TOF profile of the LOR under the cursor")
 
     def _paint_levels(self) -> None:
         """Levels into the colour bar. While locked its axis is pinned too, so it stays exactly the same
@@ -338,6 +490,13 @@ class ProjectionDataPane(QtWidgets.QWidget):
             self.tof_view.set_counts(prof.y)
             self.tof_curve.setData(list(prof.x), list(prof.y))
             self.tof_title.setText(prof.title)
+        context = prof.context if prof is not None else ""
+        self.tof_context.setText(context)
+        self.tof_context.setVisible(bool(context))
+        reference = prof.reference if prof is not None else None
+        self.tof_reference_line.setVisible(reference is not None)
+        if reference is not None:
+            self.tof_reference_line.setValue(reference)
 
     def _paint_tof_marker(self) -> None:
         marker = self.vm.tof_marker

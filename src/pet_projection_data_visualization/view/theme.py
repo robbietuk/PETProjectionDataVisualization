@@ -126,7 +126,7 @@ QFrame#Card QLabel, QFrame#Sidebar QLabel {{ background: transparent; }}
 QLabel#CardTitle {{ color: {p.text_muted}; font-size: {FONT_SIZE_SMALL}px; font-weight: 600; }}
 QLabel#Muted {{ color: {p.text_muted}; }}
 QLabel#Title {{ font-size: {FONT_SIZE_TITLE}px; font-weight: 600; }}
-QLabel#PixelReadout {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
+QLabel#PixelReadout, QFrame#Card QLabel#PixelReadout {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
     padding: 6px 8px; font-family: {MONO_FAMILY}; font-size: {FONT_SIZE - 1}px; }}
 QFrame#LevelPanel {{ background: transparent; border: none; }}
 QPlainTextEdit#Mono {{ font-family: {MONO_FAMILY}; font-size: {FONT_SIZE - 1}px; }}

@@ -115,6 +115,9 @@ class SegmentedControl(ChoiceControl[T]):
         i = self._group.checkedId()
         return self.options.value_at(i) if i >= 0 else None
 
+    def set_choice_tooltip(self, value: T, tip: str) -> None:
+        self._buttons[self.options.index_of(value)].setToolTip(tip)
+
     def set_choice_enabled(self, value: T, enabled: bool) -> None:
         self._buttons[self.options.index_of(value)].setEnabled(enabled)
 
@@ -157,6 +160,10 @@ class Card(QtWidgets.QFrame):
         self.body = QtWidgets.QVBoxLayout()
         self.body.setSpacing(8)
         lay.addLayout(self.body)
+
+    def set_title(self, title: str) -> None:
+        self.title_label.setText(title.upper())
+        self.title_label.setVisible(bool(title))
 
 
 class LabeledRow(QtWidgets.QWidget):

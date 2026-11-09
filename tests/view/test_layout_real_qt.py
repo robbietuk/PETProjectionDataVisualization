@@ -130,12 +130,16 @@ def test_segment_buttons_leave_room_for_their_bold_checked_label(win):
             assert button.width() >= QtGui.QFontMetrics(bold).horizontalAdvance(button.text()), button.text()
 
 
-def test_non_tof_data_hides_the_plot_column_and_the_image_widens(win, app):
-    before = win.pane.glw.width()
+def test_non_tof_data_hides_the_tof_plot_and_no_plots_hide_the_column(win, app):
     win.vm.load(non_tof_source())
     app.processEvents()
-    assert win.pane.plot_column.isHidden() and win.dim_controls["tof"].isHidden()
-    assert win.pane.glw.width() > before
+    assert win.pane.tof_dock.isHidden() and win.dim_controls["tof"].isHidden()
+    assert win.pane.line_dock.isVisible() and win.pane.overlay_switch.isHidden()   # no TOF bins to overlay
+    before = win.pane.glw.width()
+    win.line_profile_switch.setChecked(False)          # no plot left to show: the image takes the room
+    app.processEvents()
+    assert win.pane.plot_column.isHidden() and win.pane.glw.width() > before
+    win.line_profile_switch.setChecked(True)
 
 
 def test_opening_a_flyout_keeps_the_pane_working(win, app):

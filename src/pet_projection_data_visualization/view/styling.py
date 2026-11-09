@@ -49,6 +49,14 @@ def style_histogram(hist: pg.HistogramLUTItem, palette: Palette) -> None:
     hist.axis.setTextPen(pg.mkPen(palette.plot_axis))
 
 
+def style_line_roi(roi: pg.LineSegmentROI, palette: Palette) -> None:
+    """A draggable line on a plot (and its end handles) in the accent colour."""
+    roi.setPen(pg.mkPen(palette.accent, width=2))
+    for handle in roi.getHandles():
+        handle.pen = pg.mkPen(palette.accent, width=2)
+        handle.update()
+
+
 def style_graphics_widget(widget: pg.GraphicsView, palette: Palette) -> None:
     """The plots sit inside cards, so they share the card's surface (flat, no inset box)."""
     widget.setBackground(palette.surface)

@@ -38,7 +38,9 @@ def _uses_key(widget: QtWidgets.QWidget, key: QtCore.Qt.Key) -> bool:
     text_entry = (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox, QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)
     if key == Key.Key_Space:                # a focused rail button opens its flyout, like any push button
         return isinstance(widget, text_entry) or is_rail_button(widget)
-    if key == Key.Key_L:                   # a letter: typed into text fields, type-ahead in combo boxes
+    if key == Key.Key_Escape:              # closes the flyout or releases the profiles, wherever the focus is
+        return False
+    if key in (Key.Key_L, Key.Key_F):      # a letter: typed into text fields, type-ahead in combo boxes
         return isinstance(widget, (QtWidgets.QComboBox,) + text_entry)
     return isinstance(widget, (QtWidgets.QAbstractSlider, QtWidgets.QComboBox) + text_entry)
 
@@ -140,6 +142,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _settings_peek(self) -> str:
         pane = self.vm.pane
         return (f"TOF profile: {'shown' if pane.show_tof_profile else 'hidden'}\n"
+                f"Line profile: {'shown' if pane.show_line_profile else 'hidden'}\n"
                 f"Animation: {pane.fps} fps, {PLAY_MODE_OPTIONS.label_of(pane.play_mode).lower()}")
 
     def _build_data_flyout(self, card: ui.Card) -> None:
@@ -207,6 +210,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.tof_profile_switch.setToolTip("Show the TOF profile of the LOR under the cursor (TOF data only)")
         self.tof_profile_switch.toggled.connect(self._slot(lambda: self.vm.pane.set_show_tof_profile))
         card.body.addWidget(self.tof_profile_switch)
+        self.line_profile_switch = QtWidgets.QCheckBox("Line profile")
+        self.line_profile_switch.setToolTip("Show the line profile: the row or column through the cursor, or a free line")
+        self.line_profile_switch.toggled.connect(self._slot(lambda: self.vm.pane.set_show_line_profile))
+        card.body.addWidget(self.line_profile_switch)
         card.body.addWidget(_section("Animation"))
         self.fps_spin = QtWidgets.QSpinBox()
         self.fps_spin.setRange(1, 30)
@@ -310,12 +317,22 @@ class ViewerWindow(QtWidgets.QMainWindow):
             Key.Key_PageUp: lambda: self._run(pane.step, "segment", +1),
             Key.Key_PageDown: lambda: self._run(pane.step, "segment", -1),
             Key.Key_L: lambda: self._run(pane.toggle_level_lock),
+            Key.Key_F: lambda: self._run(pane.toggle_freeze),
+            Key.Key_Escape: self._on_escape,
         }
         self._shortcuts: dict[QtCore.Qt.Key, QtGui.QShortcut] = {}
         for key in self._shortcut_commands:
             sc = QtGui.QShortcut(QtGui.QKeySequence(key), self)
             sc.activated.connect(lambda k=key: self._on_shortcut(k))
             self._shortcuts[key] = sc
+
+    def _on_escape(self) -> None:
+        """Esc closes the open flyout (giving the focus back to its rail button); otherwise it releases
+        frozen profiles."""
+        if self.rail.open_flyout is not None:
+            self.rail.open(None)
+        else:
+            self._run(self.vm.pane.release_freeze)
 
     def _on_shortcut(self, key: QtCore.Qt.Key) -> None:
         focus = self.focusWidget()       # this window's focus child (also right when the window is not active)
@@ -410,6 +427,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
         p("tof_available", lambda: self.tof_profile_switch.setEnabled(pane.tof_available))
         p("show_tof_profile", lambda: ui.silently(
             self.tof_profile_switch, lambda: self.tof_profile_switch.setChecked(pane.show_tof_profile)))
+        p("show_line_profile", lambda: ui.silently(
+            self.line_profile_switch, lambda: self.line_profile_switch.setChecked(pane.show_line_profile)))
         p("axis_rows", self._paint_rows)
         p("slice_mode", lambda: self.mode_control.set_choice(pane.slice_mode))
         p("tof_mode", lambda: self.tof_mode_control.set_choice(pane.tof_mode))
@@ -420,7 +439,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
         p("colormap", lambda: self.cmap_control.set_choice(pane.colormap))
         p("log_display", lambda: ui.silently(self.log_switch, lambda: self.log_switch.setChecked(pane.log_display)))
         p("info_text", lambda: self.info_view.setPlainText(pane.info_text))
-        p(("summary", "colormap", "log_display", "show_tof_profile", "fps", "play_mode"), self.rail.refresh_peek)
+        p(("summary", "colormap", "log_display", "show_tof_profile", "show_line_profile", "fps", "play_mode"),
+          self.rail.refresh_peek)
 
     def _show_page(self) -> None:
         self.pages.setCurrentIndex(self.PAGE_VIEWER if self.vm.loaded else self.PAGE_EMPTY)
