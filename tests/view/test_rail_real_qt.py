@@ -62,6 +62,15 @@ def _click(widget, pos=None):
     QtWidgets.QApplication.processEvents()
 
 
+def _click_checkbox(checkbox):
+    """Click inside the check box's click area. The flyout stretches the widget, and a check box only
+    toggles when the press lands on its indicator or label, which may end before the widget's centre."""
+    opt = QtWidgets.QStyleOptionButton()
+    checkbox.initStyleOption(opt)
+    hit = checkbox.style().subElementRect(QtWidgets.QStyle.SubElement.SE_CheckBoxClickRect, opt, checkbox)
+    _click(checkbox, hit.center())
+
+
 # ---- hover peeks ----
 def test_hovering_a_rail_button_peeks_and_leaving_hides_it(win):
     button = win.rail.buttons["data"]
@@ -139,7 +148,7 @@ def test_a_click_elsewhere_closes_the_flyout(win):
 
 def test_clicks_inside_the_flyout_keep_it_open(win):
     win.rail.buttons["display"].click()
-    _click(win.log_switch)
+    _click_checkbox(win.log_switch)
     assert win.rail.open_flyout == "display" and win.vm.pane.log_display
     _click(win.rail.pages["display"])                    # on the card's background
     assert win.rail.open_flyout == "display"
