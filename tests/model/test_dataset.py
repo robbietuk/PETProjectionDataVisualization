@@ -98,7 +98,19 @@ def test_caching_avoids_rereads(demo):
     ds.segment_array(0, TofMode.SUM)
     assert src.reads == demo.info.num_tof_bins
     ds.segment_array(0, TofMode.SUM)               # reduced cache
-    ds.segment_array(0, TofMode.BIN, 1)            # raw cache (a full segment's bins are retained)
+    assert src.reads == demo.info.num_tof_bins
+    ds.segment_array(0, TofMode.BIN, 1)            # the bins summed are not kept: one read
+    ds.segment_array(0, TofMode.BIN, 1)            # raw cache
+    assert src.reads == demo.info.num_tof_bins + 1
+
+
+def test_reduction_uses_bins_already_cached(demo):
+    src = CountingSource(demo)
+    ds = ProjDataset(src)
+    for k in demo.info.tof_bins:                   # e.g. after playing through the bins
+        ds.segment_array(0, TofMode.BIN, k)
+    for mode in (TofMode.SUM, TofMode.MEAN, TofMode.MAX):
+        ds.segment_array(0, mode)
     assert src.reads == demo.info.num_tof_bins
 
 
