@@ -9,6 +9,7 @@ from typing import cast
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from ._refcount_guard import protect_singletons
+from .model.dataset import DEFAULT_CACHE_BYTES
 from .sources import make_demo_source
 from .sources.loader import make_source
 from .view._compat import override
@@ -18,10 +19,12 @@ from .view.window import ViewerWindow
 from .viewmodel import ViewerViewModel
 
 
-def build(stir_path: str | None = None, theme: str = DEFAULT_PALETTE.name) -> tuple[ViewerViewModel, ViewerWindow]:
+def build(stir_path: str | None = None, theme: str = DEFAULT_PALETTE.name,
+          cache_bytes: int | None = DEFAULT_CACHE_BYTES) -> tuple[ViewerViewModel, ViewerWindow]:
     """Create the view model (with the real loader and demo data) and its window."""
     protect_singletons()   # also here for callers that build their own window (idempotent)
-    vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source)
+    vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source,
+                         cache_bytes=cache_bytes)
     return vm, ViewerWindow(vm, PALETTES[theme])
 
 
@@ -78,8 +81,9 @@ def install_file_open_handler(app: QtWidgets.QApplication, vm: ViewerViewModel,
 
 
 def launch(projdata: object = None, stir_path: str | None = None, demo: bool = False,
-           theme: str = DEFAULT_PALETTE.name) -> int:
+           theme: str = DEFAULT_PALETTE.name, cache_bytes: int | None = DEFAULT_CACHE_BYTES) -> int:
     """Open the viewer. ``projdata`` may be a path, a ``stir.ProjData`` or a ``ProjDataSource``.
+    ``cache_bytes`` bounds the memory used to cache segments (None: unlimited).
 
     Blocks until the window is closed; returns the Qt exit code. A load failure is shown in the window.
     """
@@ -89,7 +93,7 @@ def launch(projdata: object = None, stir_path: str | None = None, demo: bool = F
     if theme not in PALETTES:
         raise ValueError(f"unknown theme {theme!r}; choose from {sorted(PALETTES)}")
     apply_theme(app, PALETTES[theme])
-    vm, window = build(stir_path, theme)
+    vm, window = build(stir_path, theme, cache_bytes)
     if sys.platform == "darwin":   # only macOS sends QFileOpenEvent
         install_file_open_handler(app, vm, window)
     if demo:

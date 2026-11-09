@@ -450,3 +450,20 @@ def test_tof_range_is_none_for_non_tof_data():
     vm, _ = make_vm()
     assert vm.load(non_tof_source())
     assert vm.tof_range is None
+
+
+# ---- cache budget ---------------------------------------------------------------------------
+def test_cache_budget_is_passed_to_each_loaded_dataset():
+    from pet_projection_data_visualization.model.dataset import DEFAULT_CACHE_BYTES
+    assert make_vm()[0].dataset.cache_bytes == DEFAULT_CACHE_BYTES
+    for budget in (0, 12345, None):
+        vm = ViewerViewModel(source_factory=lambda obj: obj, cache_bytes=budget)
+        assert vm.load(small_demo()) and vm.dataset.cache_bytes == budget
+        vm.set_tof_mode(TofMode.SUM)
+        vm.step("segment", 1)
+        assert budget is None or vm.dataset.cached_bytes <= max(budget, vm.dataset._reduced.nbytes)
+
+
+def test_negative_cache_budget_is_rejected():
+    with pytest.raises(ValueError, match="cache_bytes"):
+        ViewerViewModel(source_factory=lambda obj: obj, cache_bytes=-1)
