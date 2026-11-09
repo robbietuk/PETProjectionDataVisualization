@@ -255,7 +255,6 @@ def test_view_refits_to_the_image_when_the_slice_geometry_changes(win, app):
         assert _view_range(win) == pytest.approx(_image_extent(win)), mode
 
 
-<<<<<<< HEAD
 def _settle(app):
     for _ in range(5):
         app.processEvents()
@@ -309,7 +308,8 @@ def test_plot_minimum_follows_the_scene_when_its_layout_changes_later(win, app):
     win.plot.getAxis("left").setWidth(None)           # back to automatic: the minimum shrinks again
     _settle(app)
     assert win.glw.minimumWidth() < scene_min
-=======
+
+
 # ---- TOF profile plot: x fixed to the TOF bins, mouse acts on y only ---------------------------
 def _tof_x_range(win):
     return tuple(win.tof_view.viewRange()[0])
@@ -420,4 +420,3 @@ def test_tof_plot_y_cannot_be_panned_below_zero_for_non_negative_counts(shown, a
     assert vb.viewRange()[1][0] >= 0.0
     vb.set_counts((-1.0, 2.0))
     assert vb.state["limits"]["yLimits"][0] is None
->>>>>>> origin/main

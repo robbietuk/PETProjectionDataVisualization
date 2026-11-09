@@ -18,14 +18,9 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from ..viewmodel import (COLORMAP_OPTIONS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS,
                          BindingRegistry, LevelMode, ViewerViewModel)
 from . import components as ui
-<<<<<<< HEAD
 from .styling import apply_theme, fit_graphics_width, style_graphics_widget, style_histogram, style_plot
 from .theme import DARK, GAP, LIGHT, Palette
-=======
-from .styling import apply_theme, style_graphics_widget, style_histogram, style_plot
-from .theme import DARK, LIGHT, Palette
 from .tof_plot import TofViewBox
->>>>>>> origin/main
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
 
