@@ -167,6 +167,9 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 
 ## Using the window
 
+How each slice is laid out on screen (which axis is up and which way it runs) is described in
+[docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md).
+
 In the window: the *Slice* box chooses sinogram / viewgram / tangential slice; *Time of flight*
 chooses a single bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value, the
 bin indices, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor.
@@ -241,11 +244,12 @@ pip install -e .[test] && pytest
 | `tests/viewmodel` | every command, notification batching, levels, hover/profile, failure paths, seeded random-command invariants | numpy |
 | `tests/view` | window binding with stubbed Qt (always runs) and with real PySide6 offscreen (if installed) | Qt optional |
 | `tests/tooling` | the project itself: release checks and tag rules, changelog format, licence and SPDX headers, the CI helper scripts (`scripts/`) | numpy (Qt for the smoke test) |
-| `tests/stir_interface/test_real_stir_integration.py` | real bindings: contract, axis order vs STIR's own accessors, full stack on a real file | `stir` + a `.hs` (`STIR_TEST_PROJDATA`) |
+| `tests/stir_interface/test_real_stir_integration.py` | real bindings on a non-TOF and a TOF file: contract, axis order vs STIR's own accessors, TOF bins and Sum, full stack | `stir`; a non-TOF `.hs` (`STIR_TEST_PROJDATA`); a TOF `.hs` (`STIR_TEST_PROJDATA_TOF`, else written by `scripts/make_tof_projdata.py`) |
 
 ## Differences from the old PyQt5/matplotlib tool
 
-Kept: sinogram and viewgram modes (same axes and orientation), segment/axial/view/TOF controls, file
+Kept: sinogram and viewgram modes (same axes, and the orientation is meant to be the same: see
+[docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md), not yet compared by eye), segment/axial/view/TOF controls, file
 browse + typed path + Load, `launch(...)` with a path, a `stir.ProjData` or no argument (`launch_GUI` alias),
 `-f FILE` on the command line, max-level control (now numeric Min/Max level boxes plus a draggable histogram).
 
