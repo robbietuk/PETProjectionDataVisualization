@@ -59,6 +59,39 @@ class SinogramCountingSource(CountingSource):
         return self.inner.get_sinogram(segment, axial, tof_bin)
 
 
+class LazyTofSource:
+    """Large-shaped TOF data made on demand, one (segment, TOF bin) at a time, and never kept (like a file).
+
+    Values depend on segment, bin and position, so reductions can be checked. Counts ``get_segment`` and
+    ``get_sinogram`` calls."""
+
+    def __init__(self, tof_bins: int = 31, views: int = 48, tangential: int = 65, rings: int = 24,
+                 max_segment: int = 3):
+        self.info = ProjDataInfo(
+            name="lazy TOF", min_segment=-max_segment, max_segment=max_segment, min_view=0, max_view=views - 1,
+            min_tangential=-(tangential // 2), max_tangential=tangential - 1 - tangential // 2,
+            axial_ranges={s: (0, rings - abs(s) - 1) for s in range(-max_segment, max_segment + 1)},
+            min_tof=-(tof_bins // 2), max_tof=tof_bins - 1 - tof_bins // 2)
+        self.reads = 0
+        self.sinogram_reads = 0
+
+    def get_segment(self, segment, tof_bin):
+        self.reads += 1
+        v, a, t = self.info.expected_shape(segment)
+        f = np.float32
+        out = np.add.outer(np.add.outer(np.arange(v, dtype=f), np.arange(a, dtype=f) * f(0.5)),
+                           np.arange(t, dtype=f) * f(0.25))
+        out *= f(1 + 0.1 * (tof_bin - self.info.min_tof))
+        out += f(abs(segment))
+        return out
+
+    def get_sinogram(self, segment, axial, tof_bin):
+        self.sinogram_reads += 1
+        self.reads -= 1                               # counted as a sinogram read only
+        # a copy: a view would keep the whole segment alive behind a sinogram-sized ``nbytes``
+        return self.get_segment(segment, tof_bin)[:, axial - self.info.axial_range(segment)[0], :].copy()
+
+
 # ---- gateway-level fakes ---------------------------------------------------------------
 def layout_of(info: ProjDataInfo) -> ProjDataLayout:
     return ProjDataLayout(info.min_segment, info.max_segment, info.min_view, info.max_view,

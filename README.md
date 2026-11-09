@@ -91,7 +91,12 @@ pet-projection-data-visualization data.npz                          # numpy arra
 pet-projection-data-visualization --demo                            # synthetic TOF demo
 pet-projection-data-visualization                                   # empty window: load from the GUI
 pet-projection-data-visualization my_sinogram.hs --theme light      # light colour scheme
+pet-projection-data-visualization my_sinogram.hs --cache-size 4096  # cache up to 4 GiB of segments
 ```
+
+`--cache-size MIB` (default 1024) bounds the memory used to keep segments, Sum/Mean/Max results and hovered
+sinograms, all together. Beyond it the least recently used ones are dropped and read again when needed; `0`
+keeps only the last one read. From Python: `launch(path, cache_bytes=...)` (`None` for no limit).
 
 If `stir` is a source build that is not on the Python path, tell the viewer where it is installed:
 
@@ -267,9 +272,12 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 * Everything runs on the UI thread. Collapsing TOF bins reads every bin of one segment, and *Lock to global range*
   reads the whole data set once (every segment and, for single bins, every TOF bin); on large TOF data this
   takes a while (a wait cursor is shown). Not measured on real data yet.
-* Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least
-  recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
-  not whole segments.
+* Memory: segments, Sum/Mean/Max results and hovered sinograms share one cache of about 1 GiB (`--cache-size`);
+  beyond that the least recently used ones are dropped and read again when needed. Sum/Mean/Max read the TOF
+  bins one at a time without keeping them, and *Lock to global range* does not fill the cache. Peak memory is
+  roughly the cache plus four segments' worth of working arrays while a TOF reduction runs (measured on
+  synthetic data with 33 TOF bins: `python scripts/measure_memory.py`). Hovering reads single sinograms (one
+  per TOF bin), not whole segments.
 * Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.15), and against real STIR from conda-forge (Python 3.11 to 3.14).
 * PySide6 6.12.0 on Linux gives back references to `None`, `True` and `False` that it never took (about 64 per
   repaint of the colour bar, measured on Python 3.11; 6.8.3 to 6.11.3, and 6.12.0 on macOS and Windows, are fine).

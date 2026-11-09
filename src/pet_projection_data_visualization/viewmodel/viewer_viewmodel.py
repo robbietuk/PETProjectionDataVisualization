@@ -18,6 +18,7 @@ import numpy.typing as npt
 
 from ..model import (ProjDataset, ProjDataSource, Selection, SliceImage, SliceMode, SliceStats, TofMode,
                      finite_range)
+from ..model.dataset import DEFAULT_CACHE_BYTES
 from ..model.selection import DIMENSIONS
 from . import formatting
 from .observable import Observed, ObservableObject
@@ -149,9 +150,14 @@ class ViewerViewModel(ObservableObject):
     metrics: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) for the current slice
     context: Observed[tuple[str, ...]] = Observed(())   # chips describing the current selection
 
-    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None) -> None:
+    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None,
+                 cache_bytes: int | None = DEFAULT_CACHE_BYTES) -> None:
+        """``cache_bytes`` is the memory budget of each loaded data set's caches (None: unlimited)."""
         super().__init__()
+        if cache_bytes is not None and cache_bytes < 0:
+            raise ValueError("cache_bytes must be >= 0")
         self._factory = source_factory
+        self._cache_bytes = cache_bytes
         self._demo_factory = demo_factory
         self._dataset: ProjDataset | None = None
         self._selection: Selection | None = None
@@ -178,7 +184,7 @@ class ViewerViewModel(ObservableObject):
         """Load a path, ``stir.ProjData`` or ``ProjDataSource`` through the injected factory.
         On failure the previous data stays, ``error`` is set and False is returned."""
         try:
-            dataset = ProjDataset(self._factory(obj))
+            dataset = ProjDataset(self._factory(obj), cache_bytes=self._cache_bytes)
             selection = Selection.initial(dataset.info)
             rendered = self._render(dataset, selection, None)   # first slice must be readable
         except Exception as exc:  # noqa: BLE001 - any loader failure is reported, not raised
