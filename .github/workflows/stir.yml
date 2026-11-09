@@ -32,7 +32,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04, macos-latest, windows-latest]
-        python-version: ["3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]   # every Python conda-forge stir is built for
       fail-fast: false
     name: stir-${{ matrix.os }}-py${{ matrix.python-version }}
     env:

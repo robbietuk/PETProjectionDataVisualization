@@ -167,6 +167,9 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 
 ## Using the window
 
+How each slice is laid out on screen (which axis is up and which way it runs) is described in
+[docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md).
+
 The image takes most of the window. Hovering an icon of the rail on the left (or tabbing to it) shows a
 short summary; clicking it (or Enter/Space) opens its flyout, which stays open until you click it again,
 click elsewhere or press Esc: *Data* (path box, Browse, Load, demo data, the files opened recently,
@@ -275,11 +278,12 @@ pip install -e .[test] && pytest
 | `tests/viewmodel` | every command, notification batching, levels, hover/profile, failure paths, seeded random-command invariants | numpy |
 | `tests/view` | window binding with stubbed Qt (always runs) and with real PySide6 offscreen (if installed) | Qt optional |
 | `tests/tooling` | the project itself: release checks and tag rules, changelog format, licence and SPDX headers, the CI helper scripts (`scripts/`) | numpy (Qt for the smoke test) |
-| `tests/stir_interface/test_real_stir_integration.py` | real bindings: contract, axis order vs STIR's own accessors, full stack on a real file | `stir` + a `.hs` (`STIR_TEST_PROJDATA`) |
+| `tests/stir_interface/test_real_stir_integration.py` | real bindings on a non-TOF and a TOF file: contract, axis order vs STIR's own accessors, TOF bins and Sum, full stack | `stir`; a non-TOF `.hs` (`STIR_TEST_PROJDATA`); a TOF `.hs` (`STIR_TEST_PROJDATA_TOF`, else written by `scripts/make_tof_projdata.py`) |
 
 ## Differences from the old PyQt5/matplotlib tool
 
-Kept: sinogram and viewgram modes (same axes and orientation), segment/axial/view/TOF controls, file
+Kept: sinogram and viewgram modes (same axes, and the orientation is meant to be the same: see
+[docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md), not yet compared by eye), segment/axial/view/TOF controls, file
 browse + typed path + Load, `launch(...)` with a path, a `stir.ProjData` or no argument (`launch_GUI` alias),
 `-f FILE` on the command line, max-level control (now numeric Min/Max level boxes plus a draggable histogram).
 
@@ -300,7 +304,7 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 * Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least
   recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
   not whole segments.
-* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.14), and against real STIR from conda-forge.
+* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.15), and against real STIR from conda-forge (Python 3.11 to 3.14).
 * PySide6 6.12.0 on Linux gives back references to `None`, `True` and `False` that it never took (about 64 per
   repaint of the colour bar, measured on Python 3.11; 6.8.3 to 6.11.3, and 6.12.0 on macOS and Windows, are fine).
   From Python 3.12 those objects are immortal and nothing happens, but on Python 3.11 the viewer aborted after a few

@@ -438,3 +438,48 @@ def test_tof_plot_y_cannot_be_panned_below_zero_for_non_negative_counts(shown, a
     assert vb.viewRange()[1][0] >= 0.0
     vb.set_counts((-1.0, 2.0))
     assert vb.state["limits"]["yLimits"][0] is None
+
+
+# ---- orientation (docs/ORIENTATION.md; the model side is pinned in tests/model/test_orientation.py) ----------
+def _asymmetric_source():
+    """views 2..5, axial 5..7, tangential -2..2; each bin holds 100 * view + 10 * axial + tangential."""
+    import dataclasses
+
+    from pet_projection_data_visualization.sources import ArraySource
+    arr = np.array([[[100 * v + 10 * a + t for t in range(-2, 3)] for a in range(5, 8)] for v in range(2, 6)],
+                   dtype=np.float32)
+    src = ArraySource({0: arr}, name="asymmetric")
+    src.info = dataclasses.replace(src.info, min_view=2, max_view=5, axial_ranges={0: (5, 7)})
+    return src
+
+
+@pytest.mark.parametrize("mode, rows, cols", [(SliceMode.SINOGRAM, ("view", 2, 5), ("tangential", -2, 2)),
+                                              (SliceMode.VIEWGRAM, ("axial", 5, 7), ("tangential", -2, 2)),
+                                              (SliceMode.TANGENTIAL, ("view", 2, 5), ("axial", 5, 7))])
+def test_row_0_is_drawn_at_the_top_and_column_0_at_the_left(shown, app, mode, rows, cols):
+    win = shown
+    win.vm.load(_asymmetric_source())
+    win.vm.pane.set_slice_mode(mode)
+    _settle(app)
+    vb = win.pane.plot.getViewBox()
+    assert vb.yInverted() and not vb.xInverted()
+    assert win.pane.plot.getAxis("left").labelText == rows[0] and win.pane.plot.getAxis("bottom").labelText == cols[0]
+    n_rows, n_cols = rows[2] - rows[1] + 1, cols[2] - cols[1] + 1
+    assert win.pane.img.image.shape == (n_rows, n_cols)
+    rect = win.pane.img.mapRectToView(win.pane.img.boundingRect())
+    assert (rect.left(), rect.top(), rect.width(), rect.height()) == pytest.approx(
+        (cols[1] - 0.5, rows[1] - 0.5, n_cols, n_rows))           # integer axis values are pixel centres
+
+    def scene_of(r, c):         # where the centre of image pixel (row r, column c) lands in the scene
+        p = win.pane.img.mapToScene(QtCore.QPointF(c + 0.5, r + 0.5))
+        return p.x(), p.y()
+
+    def axes_of(r, c):          # the axis values at that pixel centre
+        p = vb.mapSceneToView(win.pane.img.mapToScene(QtCore.QPointF(c + 0.5, r + 0.5)))
+        return p.x(), p.y()
+
+    top_left, bottom_left, top_right = scene_of(0, 0), scene_of(n_rows - 1, 0), scene_of(0, n_cols - 1)
+    assert bottom_left[1] > top_left[1] and bottom_left[0] == pytest.approx(top_left[0])    # last row is lower
+    assert top_right[0] > top_left[0] and top_right[1] == pytest.approx(top_left[1])        # last column is right
+    assert axes_of(0, 0) == pytest.approx((cols[1], rows[1]))
+    assert axes_of(n_rows - 1, n_cols - 1) == pytest.approx((cols[2], rows[2]))
