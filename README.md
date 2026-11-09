@@ -148,15 +148,18 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 
 ## Using the window
 
-The image takes most of the window. The icon rail on the left opens a flyout per icon (click again to
-close it): *Data* (path box, Browse, Load, demo data), *Info* (the data set's metadata), *Display* (colour
-map, colour levels, log display) and *Settings* (animation speed). The toolbar under the image holds the
+The image takes most of the window. Hovering an icon of the rail on the left (or tabbing to it) shows a
+short summary; clicking it (or Enter/Space) opens its flyout, which stays open until you click it again,
+click elsewhere or press Esc: *Data* (path box, Browse, Load, demo data, the files opened this session,
+and whether STIR was found), *Info* (the data set's metadata), *Display* (colour map, log display, theme,
+and for now the colour levels) and *Settings* (show or hide the TOF profile, animation speed, the keyboard
+shortcuts). The toolbar under the image holds the
 *Slice* controls (sinogram / viewgram / tangential slice and the indices) and *Time of flight*: a single
 bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value and the bin indices under the
 image, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor in the plot column
 on the right.
 Keys: Space play/pause, Left/Right step the active index, PgUp/PgDn change segment, L lock/unlock the colour
-levels. When a slider, spin box or text field has the keyboard focus, these keys go to it instead (e.g. Right on
+levels, Esc close the open flyout (*Settings* lists these keys). When a slider, spin box or text field has the keyboard focus, these keys go to it instead (e.g. Right on
 the segment slider moves the segment, L typed in the path box is just a letter). Min/Max level accept any number,
 including scientific notation such as `2.5e-8`.
 
@@ -193,7 +196,7 @@ stir module ─▶ stir_interface ─▶ model ◀─ viewmodel ◀─ view (PyS
 | `stir_interface/` | model, `stir` | `StirGateway`/`StirProjDataHandle` protocols, `SwigStirGateway` (the only file importing `stir`), `StirProjDataSource` adapter |
 | `viewmodel/` | model | `ViewerViewModel` (files, title, status, errors) owning a `ProjectionPaneViewModel` (`vm.pane`: everything about the data set on screen): observable properties + command methods, formatting; shared `ChoiceOptions` and `BindingRegistry`; no Qt |
 | `view/` | viewmodel, Qt | `ViewerWindow` arranges the icon rail (`rail.py`), the self-contained `ProjectionDataPane` (`pane.py`: image, colour bar, readout, profile plots) and the slice toolbar, built from reusable `components`; `theme` (colour scheme) is Qt-free; knows nothing about sources or STIR |
-| `app.py` | everything | composition root: wires loader, demo data, view model and window |
+| `app.py` | everything | composition root: wires loader, demo data, the STIR probe, view model and window |
 
 `tests/test_architecture.py` enforces these import rules, and checks in a clean interpreter that the
 Qt-free layers never load PySide6, pyqtgraph, matplotlib or `stir`.

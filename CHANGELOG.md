@@ -63,6 +63,14 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   one alias for the untyped SWIG `stir` module), run as a pre-commit hook. The package ships a `py.typed`
   marker, so its types are visible to users' type checkers.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
+- **Icon rail peeks and flyout content (#36, phase 2).** Hovering or focusing a rail icon shows a
+  short summary beside it: the file path and format, the scanner, dimensions and TOF yes/no, the
+  display settings, or the profile and animation settings. A flyout opened with a click stays open
+  until you click elsewhere in the window or press Esc. Enter or Space on a focused icon opens it
+  and moves the focus into it, and Esc gives the focus back. The *Data* flyout lists the files
+  opened this session and shows whether STIR was found and where. *Display* has a Dark | Light
+  theme switch, in step with *View > Light theme*. *Settings* can hide the TOF profile plot and
+  lists the keyboard shortcuts.
 
 ### Fixed
 
