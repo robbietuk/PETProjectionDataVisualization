@@ -89,3 +89,25 @@ def test_disabled_text_and_monospace_rules_exist():
     css = build_stylesheet(DARK)
     assert "QLabel:disabled" in css and "QMenu::item:disabled" in css
     assert "QPlainTextEdit#Mono" in css and "QComboBox::drop-down" not in css
+
+
+@pytest.mark.parametrize("palette", PALETTES.values(), ids=lambda p: p.name)
+def test_subtle_roles_sit_between_the_surface_and_the_strong_ones(palette):
+    # card outlines are quieter than control outlines, but still visible on a card
+    assert 1.1 < contrast_ratio(palette.surface, palette.border_subtle) < contrast_ratio(palette.surface, palette.border)
+    # the chip fill is told apart from the card behind it, and text stays readable on it
+    assert contrast_ratio(palette.surface, palette.accent_subtle) > 1.1
+    assert ("text", "accent_subtle") in TEXT_PAIRS and ("on_accent", "accent_hover") in TEXT_PAIRS
+
+
+def test_type_scale_grows_and_is_used():
+    assert list(theme.TYPE_SCALE) == sorted(set(theme.TYPE_SCALE))
+    css = build_stylesheet(DARK)
+    for size in theme.TYPE_SCALE:
+        assert f"font-size: {size}px" in css, size
+
+
+def test_chip_radius_matches_the_chip_height():
+    css = build_stylesheet(DARK)
+    chip_rule = next(line for line in css.splitlines() if line.startswith("QFrame#Chip {"))
+    assert f"border-radius: {theme.CHIP_HEIGHT // 2}px" in chip_rule

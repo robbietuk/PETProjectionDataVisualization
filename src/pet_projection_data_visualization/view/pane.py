@@ -14,8 +14,8 @@ from PySide6 import QtCore, QtWidgets
 
 from ..viewmodel import BindingRegistry, LevelMode, ProjectionPaneViewModel
 from . import components as ui
-from .styling import style_graphics_widget, style_histogram, style_plot
-from .theme import DARK, Palette
+from .styling import fit_graphics_width, style_graphics_widget, style_histogram, style_plot
+from .theme import DARK, GAP, Palette
 from .tof_plot import TofViewBox
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
@@ -58,11 +58,11 @@ class ProjectionDataPane(QtWidgets.QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(8)
         header = QtWidgets.QHBoxLayout()
-        self.title_label = QtWidgets.QLabel("")
+        header.setSpacing(GAP)
+        self.title_label = ui.ElidedLabel("")     # a long title is elided; the chips keep their size
         self.title_label.setObjectName("Title")
         self.chips = ui.ChipRow()
-        header.addWidget(self.title_label)
-        header.addStretch(1)
+        header.addWidget(self.title_label, 1)
         header.addWidget(self.chips)
         col.addLayout(header)
 
@@ -149,6 +149,7 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.tof_curve.setSymbolBrush(p.curve)
         self.tof_curve.setSymbolPen(p.curve)
         self.tof_marker_line.setPen(pg.mkPen(p.marker, width=2))
+        fit_graphics_width(self.glw)       # the plot title or the axes may have changed
 
     # ------------------------------------------------------------------ user input -> commands
     def _on_user_levels(self) -> None:
@@ -245,6 +246,7 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.plot.setLabel("bottom", im.col_label)
         self.plot.setLabel("left", im.row_label)
         self.plot.setTitle(im.title)
+        fit_graphics_width(self.glw)       # the plot title or the axes may have changed
         key = (im.data.shape, im.row_label, im.col_label, im.x0, im.y0, im.width, im.height)
         if key != self._geometry_key:
             self._geometry_key = key

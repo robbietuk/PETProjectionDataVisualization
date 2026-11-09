@@ -74,7 +74,10 @@ def window_module(monkeypatch):
         sys.modules["PySide6"].__dict__[sub] = sys.modules[f"PySide6.{sub}"]
     for name in _view_modules():
         monkeypatch.delitem(sys.modules, name)
-    yield importlib.import_module("pet_projection_data_visualization.view.window")
+    module = importlib.import_module("pet_projection_data_visualization.view.window")
+    pane_module = importlib.import_module("pet_projection_data_visualization.view.pane")
+    pane_module.fit_graphics_width = lambda widget: None    # real Qt geometry arithmetic; test_window_real_qt covers it
+    yield module
     for name in _view_modules():
         sys.modules.pop(name, None)       # never leave stub-bound modules behind for later tests
 

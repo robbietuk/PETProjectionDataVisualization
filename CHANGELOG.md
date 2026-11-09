@@ -49,7 +49,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
 - **Continuous integration** on GitHub Actions, modelled on STIR's own CI and run only on standard
   free runners:
   - pre-commit, with STIR's generic hooks plus ruff and a strict Pyrefly type check
-  - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.13
+  - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.14
   - a real-STIR job with conda-forge `stir` 6.4.0 and STIR's own test data
   - building the wheel and sdist and installing each into a clean environment on all three
     operating systems
@@ -62,6 +62,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   [Pyrefly](https://pyrefly.org) type check (`preset = "strict"` plus no explicit or inferred `Any`, apart from
   one alias for the untyped SWIG `stir` module), run as a pre-commit hook. The package ships a `py.typed`
   marker, so its types are visible to users' type checkers.
+- **Python 3.14.** Support for Python 3.14.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
 - **Icon rail peeks and flyout content (#36, phase 2).** Hovering or focusing a rail icon shows a
   short summary beside it: the file path and format, the scanner, dimensions and TOF yes/no, the
@@ -110,6 +111,12 @@ These came out of two independent code reviews, before the split from STIR:
   projection data pane, `ViewerViewModel.pane` (a `ProjectionPaneViewModel`); for example
   `vm.set_slice_mode(...)` is now `vm.pane.set_slice_mode(...)`. File loading, the window title,
   the status line and errors stay on `ViewerViewModel`.
+- Refreshed visual design: new light and dark palettes with one accent colour, flat cards with
+  subtle borders, a clear type scale and more generous spacing; the plots share the card colour.
+  Header chips are no longer clipped (a long data set title is shortened with "…" instead), and the
+  left panel narrows with the window down to the width its controls need instead of being fixed
+  (with large fonts it widens instead of cutting controls off). The statistics tiles wrap into two
+  rows in a narrow window, and the window never gets so narrow that the plot or its colour bar is cut off.
 - The three level modes *Auto*, *Fixed (global range)* and *Manual* became two, *Adaptive* and
   *Locked* (`LevelMode.ADAPTIVE` / `LevelMode.LOCKED`). The global range is now the
   *Lock to global range* action, and editing a level locks it. Toggling the log display no longer

@@ -24,7 +24,7 @@ from . import components as ui
 from .pane import ProjectionDataPane
 from .rail import IconRail, is_rail_button
 from .styling import apply_theme
-from .theme import DARK, LIGHT, PALETTES, Palette
+from .theme import DARK, GAP, LIGHT, PALETTES, Palette
 
 THEME_OPTIONS = ChoiceOptions.from_values(tuple(PALETTES), tuple(name.capitalize() for name in PALETTES))
 LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
@@ -106,8 +106,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
         root = QtWidgets.QWidget()
         root.setObjectName("Root")
         row = QtWidgets.QHBoxLayout(root)
-        row.setContentsMargins(12, 6, 12, 12)
-        row.setSpacing(12)
+        row.setContentsMargins(GAP, GAP, GAP, GAP)
+        row.setSpacing(GAP)
         row.addWidget(self._build_rail())
         self.pages = QtWidgets.QStackedWidget()
         self.empty = ui.EmptyState("No projection data loaded",
@@ -117,7 +117,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.pages.addWidget(self.empty)
         self.pages.addWidget(self._build_viewer_page())
         main = QtWidgets.QVBoxLayout()
-        main.setSpacing(12)
+        main.setSpacing(GAP)
         self.banner = ui.Banner()          # outside the pages: visible even if the first load fails
         self.banner.dismissed.connect(lambda: self.vm.clear_error())
         main.addWidget(self.banner)
@@ -230,7 +230,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.level_edits: dict[str, ui.NumberEdit] = {}
         for key, label in (("low", "Min level"), ("high", "Max level")):
             edit = ui.NumberEdit()                   # any magnitude, e.g. 1e-8; commits on Enter/focus-out
-            edit.setFixedWidth(130)
+            edit.setMinimumWidth(96)                 # a minimum, not a fixed width: the panel can narrow
             edit.valueEdited.connect(self._level_bound_slot(key))
             self.level_edits[key] = edit
             display.body.addWidget(ui.LabeledRow(label, edit))
@@ -269,7 +269,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         page = QtWidgets.QWidget()
         col = QtWidgets.QVBoxLayout(page)
         col.setContentsMargins(0, 0, 0, 0)
-        col.setSpacing(12)
+        col.setSpacing(GAP)
         self.pane = ProjectionDataPane(self.vm.pane, self.palette_tokens)
         col.addWidget(self.pane, 1)
         col.addWidget(self._build_toolbar())
