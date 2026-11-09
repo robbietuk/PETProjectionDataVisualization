@@ -18,13 +18,13 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from ..viewmodel import (COLORMAP_OPTIONS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS,
                          BindingRegistry, LevelMode, ViewerViewModel)
 from . import components as ui
-from .styling import apply_theme, style_graphics_widget, style_histogram, style_plot
-from .theme import DARK, LIGHT, Palette
+from .styling import apply_theme, fit_graphics_width, style_graphics_widget, style_histogram, style_plot
+from .theme import DARK, GAP, LIGHT, Palette
 from .tof_plot import TofViewBox
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
 
-SIDEBAR_WIDTH = 340
+SIDEBAR_WIDTH = 340            # the widest the side panel gets; it narrows down to its content's minimum
 LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
                   "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
                   "log display. Typing a level or dragging the histogram locks at the new values.")
@@ -111,9 +111,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
         root = QtWidgets.QWidget()
         root.setObjectName("Root")
         row = QtWidgets.QHBoxLayout(root)
-        row.setContentsMargins(12, 6, 12, 12)
-        row.setSpacing(12)
-        row.addWidget(self._build_sidebar())
+        row.setContentsMargins(GAP, GAP, GAP, GAP)
+        row.setSpacing(GAP)
+        self.sidebar = self._build_sidebar()
+        row.addWidget(self.sidebar)
         self.pages = QtWidgets.QStackedWidget()
         self.empty = ui.EmptyState("No projection data loaded",
                                    "Open an Interfile header (.hs), a .npy/.npz array, or try the synthetic TOF demo.")
@@ -122,7 +123,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.pages.addWidget(self.empty)
         self.pages.addWidget(self._build_viewer_page())
         main = QtWidgets.QVBoxLayout()
-        main.setSpacing(12)
+        main.setSpacing(GAP)
         self.banner = ui.Banner()          # outside the pages: visible even if the first load fails
         self.banner.dismissed.connect(lambda: self.vm.clear_error())
         main.addWidget(self.banner)
@@ -130,16 +131,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
         row.addLayout(main, 1)
         self.setCentralWidget(root)
 
-    def _build_sidebar(self) -> QtWidgets.QWidget:
-        scroll = QtWidgets.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFixedWidth(SIDEBAR_WIDTH)
-        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    def _build_sidebar(self) -> ui.SidePanel:
         content = QtWidgets.QWidget()
         content.setObjectName("Content")
         col = QtWidgets.QVBoxLayout(content)
         col.setContentsMargins(0, 0, 6, 0)
-        col.setSpacing(12)
+        col.setSpacing(GAP)
 
         source = ui.Card("Data")
         self.path_edit = QtWidgets.QLineEdit()
@@ -202,7 +199,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.level_edits: dict[str, ui.NumberEdit] = {}
         for key, label in (("low", "Min level"), ("high", "Max level")):
             edit = ui.NumberEdit()                   # any magnitude, e.g. 1e-8; commits on Enter/focus-out
-            edit.setFixedWidth(130)
+            edit.setMinimumWidth(96)                 # a minimum, not a fixed width: the panel can narrow
             edit.valueEdited.connect(self._level_bound_slot(key))
             self.level_edits[key] = edit
             display.body.addWidget(ui.LabeledRow(label, edit))
@@ -216,12 +213,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.info_view.setReadOnly(True)
         self.info_view.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
         self.info_view.setObjectName("Mono")             # monospace comes from the stylesheet
-        self.info_view.setMinimumHeight(230)
+        self.info_view.setMinimumHeight(180)
         info.body.addWidget(self.info_view)
         col.addWidget(info)
         col.addStretch(1)
-        scroll.setWidget(content)
-        return scroll
+        return ui.SidePanel(content, SIDEBAR_WIDTH)
 
     def _dimension_control(self, dim: str, card: ui.Card) -> ui.DimensionControl:
         ctrl = ui.DimensionControl()
@@ -236,13 +232,13 @@ class ViewerWindow(QtWidgets.QMainWindow):
         page = QtWidgets.QWidget()
         col = QtWidgets.QVBoxLayout(page)
         col.setContentsMargins(0, 0, 0, 0)
-        col.setSpacing(12)
+        col.setSpacing(GAP)
         header = QtWidgets.QHBoxLayout()
-        self.title_label = QtWidgets.QLabel("")
+        header.setSpacing(GAP)
+        self.title_label = ui.ElidedLabel("")     # a long title is elided; the chips keep their size
         self.title_label.setObjectName("Title")
         self.chips = ui.ChipRow()
-        header.addWidget(self.title_label)
-        header.addStretch(1)
+        header.addWidget(self.title_label, 1)
         header.addWidget(self.chips)
         col.addLayout(header)
 
@@ -340,6 +336,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.tof_curve.setSymbolBrush(p.curve)
         self.tof_curve.setSymbolPen(p.curve)
         self.tof_marker_line.setPen(pg.mkPen(p.marker, width=2))
+        fit_graphics_width(self.glw)       # the plot title or the axes may have changed
 
     # ------------------------------------------------------------------ user input -> commands
     def _run(self, command: Callable[_P, object], *args: _P.args, **kwargs: _P.kwargs) -> None:
@@ -521,6 +518,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.plot.setLabel("bottom", im.col_label)
         self.plot.setLabel("left", im.row_label)
         self.plot.setTitle(im.title)
+        fit_graphics_width(self.glw)       # the plot title or the axes may have changed
         key = (im.data.shape, im.row_label, im.col_label, im.x0, im.y0, im.width, im.height)
         if key != self._geometry_key:
             self._geometry_key = key
