@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from fakes import CountingSource, non_tof_source, small_demo
+from fakes import CountingSource, non_tof_source, shifted_tof_source, small_demo
 from pet_projection_data_visualization.model import SliceMode, TofMode
 from pet_projection_data_visualization.viewmodel import COLORMAPS, LevelMode, ViewerViewModel
 from pet_projection_data_visualization.viewmodel.viewer_viewmodel import MAX_FPS, MIN_FPS
@@ -426,3 +426,27 @@ def test_levels_of_a_constant_zero_slice_are_python_floats():
     vm, _ = make_vm(ArraySource({0: np.zeros((4, 3, 5), dtype=np.float32)}))
     lo, hi = vm.levels
     assert lo == 0.0 < hi and type(lo) is float and type(hi) is float
+
+
+# ---- TOF bin range for the profile plot -----------------------------------------------------
+def test_tof_range_follows_the_loaded_dataset():
+    vm, notes = make_vm(load=False)
+    assert vm.tof_range is None
+    assert vm.load(small_demo(tof_bins=5))
+    assert vm.tof_range == (0, 4)
+
+
+def test_tof_range_with_negative_bins_and_hover():
+    vm, notes = make_vm(shifted_tof_source(-3, tof_bins=7))
+    assert vm.tof_range == (-3, 3)
+    vm.hover_at(0, 3)
+    assert vm.tof_range == (-3, 3)
+    assert vm.tof_profile is not None and vm.tof_profile.x == tuple(range(-3, 4))
+    assert any("tof_profile" in n for n in notes)
+    assert not any("tof_range" in n for n in notes)     # hovering never changes the range
+
+
+def test_tof_range_is_none_for_non_tof_data():
+    vm, _ = make_vm()
+    assert vm.load(non_tof_source())
+    assert vm.tof_range is None

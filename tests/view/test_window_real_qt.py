@@ -255,6 +255,7 @@ def test_view_refits_to_the_image_when_the_slice_geometry_changes(win, app):
         assert _view_range(win) == pytest.approx(_image_extent(win)), mode
 
 
+<<<<<<< HEAD
 def _settle(app):
     for _ in range(5):
         app.processEvents()
@@ -308,3 +309,115 @@ def test_plot_minimum_follows_the_scene_when_its_layout_changes_later(win, app):
     win.plot.getAxis("left").setWidth(None)           # back to automatic: the minimum shrinks again
     _settle(app)
     assert win.glw.minimumWidth() < scene_min
+=======
+# ---- TOF profile plot: x fixed to the TOF bins, mouse acts on y only ---------------------------
+def _tof_x_range(win):
+    return tuple(win.tof_view.viewRange()[0])
+
+
+def _tof_y_range(win):
+    win.tof_view.updateAutoRange()
+    return tuple(win.tof_view.viewRange()[1])
+
+
+def _wheel_over_tof_plot(win, app, delta=240):
+    from PySide6 import QtCore, QtGui
+    vb, view = win.tof_view, win.tof_plot
+    centre = view.mapFromScene(vb.mapViewToScene(vb.viewRect().center()))
+    ev = QtGui.QWheelEvent(QtCore.QPointF(centre), QtCore.QPointF(view.mapToGlobal(centre)), QtCore.QPoint(0, 0),
+                           QtCore.QPoint(0, delta), QtCore.Qt.MouseButton.NoButton,
+                           QtCore.Qt.KeyboardModifier.NoModifier, QtCore.Qt.ScrollPhase.NoScrollPhase, False)
+    QtWidgets.QApplication.sendEvent(view.viewport(), ev)
+    app.processEvents()
+
+
+class _DoubleClick:
+    def __init__(self):
+        self.accepted = False
+
+    def double(self):
+        return True
+
+    def button(self):
+        from PySide6 import QtCore
+        return QtCore.Qt.MouseButton.LeftButton
+
+    def accept(self):
+        self.accepted = True
+
+
+@pytest.fixture
+def shown(win, app):
+    win.resize(1200, 800)
+    win.show()
+    app.processEvents()
+    return win
+
+
+def test_tof_plot_mouse_moves_only_y_and_has_no_menu(shown):
+    vb = shown.tof_view
+    assert vb.state["mouseEnabled"] == [False, True]
+    assert vb.autoRangeEnabled()[0] is False and vb.autoRangeEnabled()[1]
+    assert not shown.tof_plot.getPlotItem().menuEnabled() and not vb.menuEnabled()
+
+
+def test_tof_plot_x_range_matches_the_tof_bins_of_each_dataset(shown, app):
+    from fakes import shifted_tof_source
+    from pet_projection_data_visualization.view.tof_plot import tof_x_limits
+
+    assert _tof_x_range(shown) == pytest.approx(tof_x_limits(0, 4))
+    shown.vm.load(shifted_tof_source(-3, tof_bins=7))
+    app.processEvents()
+    assert _tof_x_range(shown) == pytest.approx(tof_x_limits(-3, 3))
+    assert tof_x_limits(-3, 3)[0] < -3 and tof_x_limits(-3, 3)[1] > 3
+    shown.vm.hover_at(0, 3)
+    app.processEvents()
+    assert shown.vm.tof_profile is not None
+    assert _tof_x_range(shown) == pytest.approx(tof_x_limits(-3, 3))    # a new LOR keeps the x-range
+    shown.vm.hover_at(5, 2)
+    app.processEvents()
+    assert _tof_x_range(shown) == pytest.approx(tof_x_limits(-3, 3))
+
+
+def test_tof_plot_wheel_zooms_y_only_and_double_click_or_auto_button_refits(shown, app):
+    shown.vm.hover_at(0, 3)
+    app.processEvents()
+    x0, fitted = _tof_x_range(shown), _tof_y_range(shown)
+    assert fitted[0] >= 0                             # counts are >= 0: y never shows below 0
+
+    _wheel_over_tof_plot(shown, app)
+    assert _tof_x_range(shown) == pytest.approx(x0)
+    zoomed = tuple(shown.tof_view.viewRange()[1])
+    assert zoomed[1] - zoomed[0] < fitted[1] - fitted[0]
+    assert not shown.tof_view.autoRangeEnabled()[1]   # the user zoomed: a new profile keeps the zoom
+    shown.vm.hover_at(1, 3)
+    app.processEvents()
+    assert tuple(shown.tof_view.viewRange()[1]) == pytest.approx(zoomed)
+
+    ev = _DoubleClick()
+    shown.tof_view.mouseClickEvent(ev)
+    assert ev.accepted and shown.tof_view.autoRangeEnabled()[1]
+    assert shown.tof_view.autoRangeEnabled()[0] is False
+    refitted, counts = _tof_y_range(shown), shown.vm.tof_profile.y
+    assert refitted != pytest.approx(zoomed)
+    assert refitted[0] <= min(counts) and max(counts) <= refitted[1]   # the whole profile is in view
+    assert _tof_x_range(shown) == pytest.approx(x0)
+
+    _wheel_over_tof_plot(shown, app)
+    shown.tof_plot.getPlotItem().autoBtnClicked()     # pyqtgraph's "A" button
+    assert shown.tof_view.autoRangeEnabled()[0] is False and shown.tof_view.autoRangeEnabled()[1]
+    assert _tof_y_range(shown) == pytest.approx(refitted)
+    assert _tof_x_range(shown) == pytest.approx(x0)
+
+
+def test_tof_plot_y_cannot_be_panned_below_zero_for_non_negative_counts(shown, app):
+    shown.vm.hover_at(0, 3)
+    app.processEvents()
+    vb = shown.tof_view
+    assert vb.state["limits"]["yLimits"][0] == 0.0
+    vb.translateBy(y=-1e6)
+    app.processEvents()
+    assert vb.viewRange()[1][0] >= 0.0
+    vb.set_counts((-1.0, 2.0))
+    assert vb.state["limits"]["yLimits"][0] is None
+>>>>>>> origin/main

@@ -14,6 +14,13 @@ QT_QPA_PLATFORM=offscreen pytest                    # the same command CI runs
 The real-STIR tests run only where `import stir` works. Use a conda environment with conda-forge
 `stir` and point the tests at a file with `STIR_TEST_PROJDATA=/path/to/file.hs`.
 
+Once a week (and on demand) the `STIR master` workflow builds UCL/STIR `master` from source with the
+Python bindings, cached with ccache, and runs the same tests against it. This catches STIR API
+changes before they reach a conda-forge release. A failure comments on the one open issue labelled
+`stir-master`, or opens that issue, and the next passing run closes it
+(`scripts/ci_tracking_issue.sh`). Until it is moved into `.github/workflows/`, the workflow is at
+[docs/workflows/stir-master.yml](docs/workflows/stir-master.yml).
+
 ## Type checking
 
 `src/`, `scripts/` and `packaging/` are type-checked with [Pyrefly](https://pyrefly.org) in strict mode, as a
