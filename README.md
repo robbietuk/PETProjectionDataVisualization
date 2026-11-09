@@ -115,6 +115,32 @@ If loading fails, the reason is shown in a banner at the top of the window and t
 stays on screen. The most common message, *Could not import the 'stir' module*, means the viewer cannot see
 STIR's Python bindings: use the conda environment, or `--stir-path` / `STIR_PYTHON_PATH` as above.
 
+#### The STIR setup window
+
+When you open a `.hs` file and `stir` cannot be imported, the viewer opens **Set up STIR**. Numpy files and
+the demo never need STIR, so they never open it. Enter, or **Browse...** to, one of these:
+
+* a conda environment with conda-forge's `stir`, e.g. `~/miniforge3/envs/stir`;
+* the `CMAKE_INSTALL_PREFIX` of a STIR source build (the folder that contains `python/stir`), or that
+  `python` folder itself.
+
+**Test** tries `import stir` in a separate Python process and reports the result. It also says when that
+STIR was built for a different Python version than the one running the viewer. **Save** tests the path
+again and stores it in `config.json` in your config folder:
+
+| Platform | Config file |
+| --- | --- |
+| Linux | `$XDG_CONFIG_HOME/PETProjectionDataVisualization/config.json` (default `~/.config/...`) |
+| macOS | `~/Library/Application Support/PETProjectionDataVisualization/config.json` |
+| Windows | `%APPDATA%\PETProjectionDataVisualization\config.json` |
+
+The saved path is used at every start. STIR is looked for in this order: `--stir-path`, `STIR_PYTHON_PATH`,
+the saved path, then whatever plain `import stir` finds. Linux and macOS read the library path
+(`LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`) only when a process starts. So after Save, a viewer started from the
+command line restarts itself once with `<prefix>/lib` on that path and opens the file again. On Windows,
+STIR's `bin` and `lib` folders are registered with `os.add_dll_directory` and the file opens without a
+restart. `PET_PDV_CONFIG_DIR` overrides the config folder.
+
 ### 3. From Python
 
 `launch` blocks until the window is closed. It takes a filename, a `stir.ProjData` object you already have

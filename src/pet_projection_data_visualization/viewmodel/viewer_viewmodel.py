@@ -16,12 +16,14 @@ from typing import Callable, Concatenate, ParamSpec, TypeVar
 import numpy as np
 import numpy.typing as npt
 
-from ..model import (ProjDataset, ProjDataSource, Selection, SliceImage, SliceMode, SliceStats, TofMode,
-                     finite_range)
+from ..model import (ProjDataset, ProjDataSource, Selection, SliceImage, SliceMode, SliceStats,
+                     StirNotFoundError, TofMode, finite_range)
 from ..model.selection import DIMENSIONS
 from . import formatting
+from .formatting import clean_path
 from .observable import Observed, ObservableObject
 from .options import COLORMAPS, LevelMode
+from .stir_setup import StirSetupService, StirSetupViewModel
 
 DIM_LABELS = {
     "segment": "Segment",
@@ -99,14 +101,6 @@ class _LevelLock:
         return float(np.expm1(self.lo)), float(np.expm1(self.hi))
 
 
-def clean_path(text: str) -> str:
-    """Normalise a typed or pasted path: strip whitespace and one pair of surrounding quotes, expand ``~``."""
-    text = (text or "").strip()
-    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
-        text = text[1:-1].strip()
-    return os.path.expanduser(text) if text else ""
-
-
 def _min_span(value: float) -> float:
     """Smallest usable width of a level range starting at ``value`` (for constant data)."""
     return max(abs(value) * 1e-6, float(np.finfo(np.float32).tiny))
@@ -148,11 +142,16 @@ class ViewerViewModel(ObservableObject):
     tof_profile: Observed[TofProfile | None] = Observed(None)
     metrics: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) for the current slice
     context: Observed[tuple[str, ...]] = Observed(())   # chips describing the current selection
+    # a STIR file that could not be opened because ``stir`` is missing: the view opens the setup window
+    stir_setup_file: Observed[str | None] = Observed(None)
 
-    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None) -> None:
+    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None,
+                 stir_setup: StirSetupService | None = None) -> None:
         super().__init__()
         self._factory = source_factory
         self._demo_factory = demo_factory
+        self._stir_service = stir_setup
+        self._stir_setup: StirSetupViewModel | None = None
         self._dataset: ProjDataset | None = None
         self._selection: Selection | None = None
         self._slice: SliceImage | None = None
@@ -183,6 +182,10 @@ class ViewerViewModel(ObservableObject):
             rendered = self._render(dataset, selection, None)   # first slice must be readable
         except Exception as exc:  # noqa: BLE001 - any loader failure is reported, not raised
             self._report_error(f"Could not load projection data: {exc}")   # lock and levels stay as they were
+            if (isinstance(exc, StirNotFoundError) and isinstance(obj, (str, os.PathLike))
+                    and self._stir_service is not None):
+                self.stir_setup_file = os.fspath(obj)
+                self._mark_changed("stir_setup_file")      # ask again after every such failure
             return False
         # A new data set starts adaptive: limits locked on another data set (other units, other scale)
         # would show it saturated or black without saying why.
@@ -220,6 +223,26 @@ class ViewerViewModel(ObservableObject):
             self._report_error("No demo data is available in this configuration")
             return False
         return self.load(self._demo_factory())
+
+    def open_stir_setup(self) -> StirSetupViewModel | None:
+        """The view model of the STIR setup window for ``stir_setup_file`` (None if nothing asks for one)."""
+        file = self.stir_setup_file
+        if file is None or self._stir_service is None:
+            return None
+        if self._stir_setup is None or self._stir_setup.file != file:
+            self._stir_setup = StirSetupViewModel(self._stir_service, file)
+        return self._stir_setup
+
+    @_command
+    def finish_stir_setup(self) -> bool:
+        """The setup window closed. After a Save the new path is applied (on Linux and macOS this restarts
+        the viewer, which does not return) and the file is opened again. Returns whether it loaded."""
+        setup, self._stir_setup = self._stir_setup, None
+        self.stir_setup_file = None
+        if setup is None or setup.saved_path is None:
+            return False
+        setup.apply()
+        return self.load(setup.file)
 
     @_command
     def clear_error(self) -> None:

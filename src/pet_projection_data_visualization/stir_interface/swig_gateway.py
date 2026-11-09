@@ -5,8 +5,8 @@
 ``stir`` is a compiled extension that is not on PyPI, so it is imported lazily. Lookup order,
 see ``import_stir``:
 
-1. an explicit directory (``--stir-path`` / ``STIR_PYTHON_PATH``), i.e. the
-   ``<CMAKE_INSTALL_PREFIX>/python`` of a source build;
+1. an explicit directory (``--stir-path``, ``STIR_PYTHON_PATH``, or the path saved by the setup window;
+   see ``stir_config``), e.g. the ``<CMAKE_INSTALL_PREFIX>/python`` of a source build;
 2. whatever ``import stir`` finds in the active environment (e.g. conda-forge ``stir``).
 """
 from __future__ import annotations
@@ -15,15 +15,17 @@ import importlib
 import os
 import sys
 import warnings
+from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Final, TypeAlias, TypeVar
+from typing import Any, Callable, Mapping, TypeAlias, TypeVar
 
 import numpy as np
 import numpy.typing as npt
 
 from .gateway import ProjDataLayout, StirNotFoundError
+from .stir_config import ENV_VAR, StirLocation, load_saved_path, resolve_stir_path, windows_dll_dirs
 
-ENV_VAR: Final = "STIR_PYTHON_PATH"
+__all__ = ["ENV_VAR", "SwigProjData", "SwigStirGateway", "import_stir"]
 
 # The SWIG-generated ``stir`` module ships no type information, so the module and every object it returns
 # (ProjData, segments, sinograms, ...) are dynamic. This alias is the one place in the package where ``Any``
@@ -33,17 +35,14 @@ StirObject: TypeAlias = Any  # pyrefly: ignore[explicit-any]
 _T = TypeVar("_T")
 
 
-def _add_windows_dll_dirs(python_dir: str) -> None:
+def _add_windows_dll_dirs(location: StirLocation) -> None:
     """Python >= 3.8 on Windows ignores PATH for extension-module dependencies, so register the
-    install prefix's bin/lib directories explicitly (``<prefix>/python`` -> ``<prefix>/bin``, ``lib``)."""
+    install prefix's bin/lib directories explicitly (see ``stir_config.windows_dll_dirs``)."""
     add = getattr(os, "add_dll_directory", None)
     if add is None:
         return
-    prefix = os.path.dirname(python_dir.rstrip("\\/"))
-    for sub in ("bin", "lib"):
-        d = os.path.join(prefix, sub)
-        if os.path.isdir(d):
-            add(d)
+    for d in windows_dll_dirs(location):
+        add(d)
 
 
 def _module_dir(module: ModuleType) -> str | None:
@@ -51,25 +50,23 @@ def _module_dir(module: ModuleType) -> str | None:
     return os.path.dirname(os.path.dirname(os.path.abspath(f))) if f else None
 
 
-def import_stir(extra_path: str | None = None) -> ModuleType:
-    """Import and return the ``stir`` module.
+def import_stir(extra_path: str | None = None, environ: Mapping[str, str] | None = None,
+                config_file: Path | None = None) -> ModuleType:
+    """Import and return the ``stir`` module, looked for as ``stir_config.resolve_stir_path`` says:
+    ``extra_path`` (``--stir-path``), ``$STIR_PYTHON_PATH``, the saved setting, then plain ``import stir``.
 
-    * ``extra_path`` (``--stir-path``) is an explicit request: it must exist, and is searched first.
-    * ``$STIR_PYTHON_PATH`` is a default: if it does not exist a warning is issued and the normal
-      ``import stir`` is tried instead.
+    * ``extra_path`` is an explicit request: it must exist.
+    * The environment variable and the saved setting are defaults: one that does not exist is skipped with
+      a warning.
     * A ``stir`` that is already imported cannot be replaced (it is a compiled extension); if it comes from
-      somewhere else than ``extra_path`` a warning says which one is used.
+      somewhere else than the requested path a warning says which one is used.
     """
-    path = extra_path
-    if path is None and os.environ.get(ENV_VAR):
-        env_path = os.path.abspath(os.path.expanduser(os.environ[ENV_VAR]))
-        if os.path.isdir(env_path):
-            path = env_path
-        else:
-            warnings.warn(f"${ENV_VAR}={os.environ[ENV_VAR]!r} is not a directory; ignoring it", RuntimeWarning,
-                          stacklevel=2)
-    if path:
-        path = os.path.abspath(os.path.expanduser(path))
+    resolved = resolve_stir_path(extra_path, os.environ if environ is None else environ,
+                                 load_saved_path(config_file))
+    origin = ""
+    if resolved is not None:
+        path = resolved.location.python_dir
+        origin = f" from {path} (given by {resolved.source.value})"
         if not os.path.isdir(path):
             raise StirNotFoundError(f"STIR python path does not exist: {path}")
         loaded = sys.modules.get("stir")
@@ -82,12 +79,12 @@ def import_stir(extra_path: str | None = None) -> ModuleType:
             return loaded
         if path not in sys.path:
             sys.path.insert(0, path)
-        _add_windows_dll_dirs(path)
+        _add_windows_dll_dirs(resolved.location)
     try:
         return importlib.import_module("stir")
     except ImportError as exc:
         raise StirNotFoundError(
-            "Could not import the 'stir' module.\n"
+            f"Could not import the 'stir' module{origin}.\n"
             "  * conda:        conda install -c conda-forge stir   (then run inside that environment)\n"
             "  * source build: pass --stir-path <install prefix>/python (or set STIR_PYTHON_PATH) and make\n"
             "                  sure the STIR shared libraries are on LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH.\n"

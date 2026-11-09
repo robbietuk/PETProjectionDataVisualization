@@ -100,6 +100,9 @@ def test_swig_gateway_imports_stir_only_lazily():
     ["pet_projection_data_visualization.sources"],
     ["pet_projection_data_visualization.stir_interface"],
     ["pet_projection_data_visualization.viewmodel"],
+    ["pet_projection_data_visualization.stir_interface.stir_config",          # STIR lookup and saved setting
+     "pet_projection_data_visualization.stir_interface.swig_gateway",
+     "pet_projection_data_visualization.viewmodel.stir_setup"],
     ["pet_projection_data_visualization.model", "pet_projection_data_visualization.sources", "pet_projection_data_visualization.stir_interface",
      "pet_projection_data_visualization.viewmodel", "pet_projection_data_visualization.cli"],
 ])

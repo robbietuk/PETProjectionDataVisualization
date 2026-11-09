@@ -64,6 +64,14 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   marker, so its types are visible to users' type checkers.
 - **Python 3.14 and 3.15.** Support for Python 3.14 and 3.15, tested in CI on Linux, macOS and Windows.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
+- **STIR setup window.** Opening a `.hs` file when `stir` cannot be imported opens a window that
+  says what is missing. It has a path box with Browse, a short how-to for conda and source builds,
+  a **Test** button that tries the import and reports a Python-version mismatch, and **Save**. Save
+  stores the path in a per-user config file (`config.json` in the platform's config folder), which is
+  read at every start. On Linux and macOS the viewer then restarts once so the library path takes
+  effect. On Windows, STIR's `bin` and `lib` folders are registered for DLL loading. STIR is now
+  looked for in this order: `--stir-path`, `STIR_PYTHON_PATH`, the saved path, then plain
+  `import stir`. A path may be the STIR install prefix, its `python` folder or a conda environment.
 
 ### Fixed
 

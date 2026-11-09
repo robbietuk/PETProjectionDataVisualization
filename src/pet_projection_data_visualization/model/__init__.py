@@ -6,6 +6,8 @@ from .dataset import ProjDataset
 from .info import ProjDataInfo, ProjDataSource
 from .selection import DIMENSIONS, Selection, SliceMode, TofMode
 from .slices import SliceImage, SliceStats, compute_stats, finite_range
+from .stir_setup import StirCheck, StirNotFoundError
 
 __all__ = ["DIMENSIONS", "ProjDataInfo", "ProjDataSource", "ProjDataset", "Selection",
-           "SliceImage", "SliceMode", "SliceStats", "TofMode", "compute_stats", "finite_range"]
+           "SliceImage", "SliceMode", "SliceStats", "StirCheck", "StirNotFoundError", "TofMode",
+           "compute_stats", "finite_range"]

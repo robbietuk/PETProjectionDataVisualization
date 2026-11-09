@@ -18,8 +18,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="same as the positional PATH (option of the old stir.projdata_visualisation tool)")
     p.add_argument("--demo", action="store_true", help="show a synthetic TOF data set (needs no STIR)")
     p.add_argument("--stir-path", metavar="DIR",
-                   help="directory containing the 'stir' python package, e.g. <install prefix>/python "
-                        "(default: $STIR_PYTHON_PATH, else whatever 'import stir' finds)")
+                   help="STIR install prefix, its python folder (containing the 'stir' package) or a conda "
+                        "environment (default: $STIR_PYTHON_PATH, then the path saved by the STIR setup "
+                        "window, else whatever 'import stir' finds)")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--theme", choices=("dark", "light"), default="dark", help="colour scheme (default: dark)")
     return p
@@ -28,7 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     from .app import launch  # imported here so --help works without Qt
-    return launch(args.filename or args.path, stir_path=args.stir_path, demo=args.demo, theme=args.theme)
+    return launch(args.filename or args.path, stir_path=args.stir_path, demo=args.demo, theme=args.theme,
+                  restart_on_save=True)
 
 
 if __name__ == "__main__":
