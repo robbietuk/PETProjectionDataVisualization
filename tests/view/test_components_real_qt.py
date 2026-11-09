@@ -87,6 +87,40 @@ def test_card_title_and_body(app):
     assert card.body.count() == 1
 
 
+def test_a_long_card_title_wraps_instead_of_widening_the_card(app):
+    short, long = ui.Card("TOF profile"), ui.Card("TOF profile of the frozen LOR (click or Esc releases)")
+    assert long.title_label.wordWrap()
+    assert long.minimumSizeHint().width() <= short.minimumSizeHint().width() + 40
+
+
+@pytest.mark.parametrize("style", ["Fusion", "Windows"])
+def test_compact_buttons_are_as_wide_as_their_text_in_any_style(app, style):
+    """Fusion and the Windows styles make a push button with text at least 75-80 px wide; a row of
+    ‹ › ▶ and Bin | Sum | Mean | Max then made the window wider than a laptop screen (Windows CI)."""
+    if style.lower() not in [k.lower() for k in QtWidgets.QStyleFactory.keys()]:
+        pytest.skip(f"no {style} style here")
+    old_style, old_sheet = app.style().name(), app.styleSheet()
+    app.setStyleSheet("")
+    app.setStyle(style)
+    try:
+        for text in ("‹", "›", ui.PLAY_TEXT, ui.PAUSE_TEXT, "Bin"):
+            plain, compact = QtWidgets.QPushButton(text), ui.CompactButton(text)
+            limit = compact.fontMetrics().horizontalAdvance(text) + 2 * ui.COMPACT_BUTTON_PAD
+            assert compact.sizeHint().width() <= limit < plain.sizeHint().width()
+            assert compact.minimumSizeHint().width() <= limit
+            assert compact.sizeHint().height() == plain.sizeHint().height()
+        row = ui.AxisRowControl(ui.SegmentedControl(SLICE_MODE_OPTIONS))
+        for b in (row._prev, row._next, row.play_button):
+            assert isinstance(b, ui.CompactButton) and b.sizeHint().width() < 60
+        # the stylesheet's own (smaller) width is kept
+        app.setStyleSheet("QPushButton { padding: 0 1px; min-width: 4px; border: 1px solid gray; }")
+        b, plain = ui.CompactButton("Bin"), QtWidgets.QPushButton("Bin")
+        assert b.sizeHint().width() == plain.sizeHint().width()
+    finally:
+        app.setStyle(old_style)
+        app.setStyleSheet(old_sheet)
+
+
 def test_empty_state_actions_call_back(app):
     es = ui.EmptyState("t", "h")
     hits = []

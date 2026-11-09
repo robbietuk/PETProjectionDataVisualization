@@ -103,6 +103,18 @@ def test_the_image_is_the_largest_part_and_the_toolbar_is_under_it(win):
     assert img_w * img_h > 0.3 * win.centralWidget().width() * win.centralWidget().height()
 
 
+def test_the_window_fits_a_laptop_screen(win, app):
+    """On Windows the window could not get narrower than ~1560 px (the native style's wide push buttons and a
+    long dock title), so it grew past the 1320 px it was given and the image lost its share."""
+    assert win.minimumSizeHint().width() <= 1320
+    assert win.width() == 1320
+    before = win.minimumSizeHint().width()
+    win.pane.tof_dock.set_title("TOF profile of the frozen LOR (click or Esc releases)")   # a long title wraps
+    app.processEvents()
+    assert win.minimumSizeHint().width() <= before
+    assert win.width() == 1320
+
+
 def test_the_toolbar_is_no_taller_than_its_rows(win):
     """Three stacked rows (segment, fixed axis, TOF) must not eat the image (Windows' taller widgets did):
     the toolbar is its rows plus slim padding, and the TOF row with its Bin | Sum | Mean | Max is no

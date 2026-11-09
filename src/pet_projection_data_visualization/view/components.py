@@ -58,7 +58,35 @@ class ChoiceControl(QtWidgets.QWidget, Generic[T]):
         raise NotImplementedError
 
 
-class _SegmentButton(QtWidgets.QPushButton):
+COMPACT_BUTTON_PAD = 10     # each side of a compact button's text, frame included
+
+
+class CompactButton(QtWidgets.QPushButton):
+    """A push button no wider than its text (and icon) plus ``COMPACT_BUTTON_PAD`` on each side.
+
+    Fusion and the Windows styles give every push button with text at least 75–80 px. Without the app's
+    stylesheet (which has its own ``min-width``), a toolbar row of ‹ › ▶ and Bin | Sum | Mean | Max made
+    the window wider than a laptop screen on Windows. The narrower of the style's hint and the text width
+    wins, so the stylesheet's own sizes are kept."""
+
+    def text_width(self) -> int:
+        width = self.fontMetrics().horizontalAdvance(self.text())
+        if not self.icon().isNull():
+            width += self.iconSize().width() + 4
+        return width + 2 * COMPACT_BUTTON_PAD
+
+    @override
+    def sizeHint(self) -> QtCore.QSize:
+        hint = super().sizeHint()
+        return QtCore.QSize(min(hint.width(), self.text_width()), hint.height())
+
+    @override
+    def minimumSizeHint(self) -> QtCore.QSize:
+        hint = super().minimumSizeHint()
+        return QtCore.QSize(min(hint.width(), self.text_width()), hint.height())
+
+
+class _SegmentButton(CompactButton):
     """A segment of a ``SegmentedControl``. The checked one is drawn bold (stylesheet), so the size hints
     leave room for the bold label: choosing a segment never clips its text."""
 
@@ -162,6 +190,7 @@ class Card(QtWidgets.QFrame):
         lay.setSpacing(GAP - 2)
         self.title_label = QtWidgets.QLabel(title.upper())
         self.title_label.setObjectName("CardTitle")
+        self.title_label.setWordWrap(True)       # a long title (e.g. a frozen LOR's) wraps instead of widening the window
         self.title_label.setVisible(bool(title))
         lay.addWidget(self.title_label)
         self.body = QtWidgets.QVBoxLayout()
@@ -466,7 +495,7 @@ class AxisRowControl(QtWidgets.QWidget):
         self._spin.setMinimumWidth(64)
         self._slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self._slider.setMinimumWidth(80)
-        self._play = QtWidgets.QPushButton(PLAY_TEXT)
+        self._play = CompactButton(PLAY_TEXT)
         self._play.setCheckable(True)
         self._play.setProperty("compact", "true")
         self._play.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
@@ -493,7 +522,7 @@ class AxisRowControl(QtWidgets.QWidget):
 
     @staticmethod
     def _small_button(text: str) -> QtWidgets.QPushButton:
-        b = QtWidgets.QPushButton(text)
+        b = CompactButton(text)
         b.setProperty("variant", "ghost")
         b.setProperty("compact", "true")
         b.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
