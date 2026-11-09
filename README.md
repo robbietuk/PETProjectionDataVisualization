@@ -148,15 +148,19 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 
 ## Using the window
 
-In the window: the *Slice* box chooses sinogram / viewgram / tangential slice; *Time of flight*
-chooses a single bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value, the
-bin indices, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor.
+The image takes most of the window. The icon rail on the left opens a flyout per icon (click again to
+close it): *Data* (path box, Browse, Load, demo data), *Info* (the data set's metadata), *Display* (colour
+map, colour levels, log display) and *Settings* (animation speed). The toolbar under the image holds the
+*Slice* controls (sinogram / viewgram / tangential slice and the indices) and *Time of flight*: a single
+bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value and the bin indices under the
+image, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor in the plot column
+on the right.
 Keys: Space play/pause, Left/Right step the active index, PgUp/PgDn change segment, L lock/unlock the colour
 levels. When a slider, spin box or text field has the keyboard focus, these keys go to it instead (e.g. Right on
 the segment slider moves the segment, L typed in the path box is just a letter). Min/Max level accept any number,
 including scientific notation such as `2.5e-8`.
 
-Colour levels (*Display* card, *Levels* toggle):
+Colour levels (*Display* flyout, *Levels* toggle):
 
 | | **Adaptive** (default) | **Locked** |
 |---|---|---|
@@ -187,8 +191,8 @@ stir module ─▶ stir_interface ─▶ model ◀─ viewmodel ◀─ view (PyS
 | `model/` | numpy only | `ProjDataInfo`, immutable `Selection`, `ProjDataset` (slices, TOF reduction, caches, stats) |
 | `sources/` | model | numpy `.npy/.npz` source, synthetic TOF demo, `make_source` |
 | `stir_interface/` | model, `stir` | `StirGateway`/`StirProjDataHandle` protocols, `SwigStirGateway` (the only file importing `stir`), `StirProjDataSource` adapter |
-| `viewmodel/` | model | `ViewerViewModel`: observable properties + command methods, formatting; shared `ChoiceOptions` and `BindingRegistry`; no Qt |
-| `view/` | viewmodel, Qt | `ViewerWindow` binds reusable `components` to the view model; `theme` (colour scheme) is Qt-free; knows nothing about sources or STIR |
+| `viewmodel/` | model | `ViewerViewModel` (files, title, status, errors) owning a `ProjectionPaneViewModel` (`vm.pane`: everything about the data set on screen): observable properties + command methods, formatting; shared `ChoiceOptions` and `BindingRegistry`; no Qt |
+| `view/` | viewmodel, Qt | `ViewerWindow` arranges the icon rail (`rail.py`), the self-contained `ProjectionDataPane` (`pane.py`: image, colour bar, readout, profile plots) and the slice toolbar, built from reusable `components`; `theme` (colour scheme) is Qt-free; knows nothing about sources or STIR |
 | `app.py` | everything | composition root: wires loader, demo data, view model and window |
 
 `tests/test_architecture.py` enforces these import rules, and checks in a clean interpreter that the

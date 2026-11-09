@@ -90,6 +90,18 @@ These came out of two independent code reviews, before the split from STIR:
 
 ### Changed
 
+- **New layout (#36, phase 1).** The left column of cards is replaced by a narrow icon rail
+  (Data, Info, Display, Settings); clicking an icon opens its controls in a flyout beside it and
+  clicking again closes it. The image gets most of the window, the TOF profile moves to a resizable
+  column on its right (hidden for non-TOF data), and the slice controls (sinogram / viewgram /
+  tangential, the indices, time of flight and Play) move to a toolbar under the image. The cursor
+  value is shown under the image instead of in the status bar. The Data flyout also has a
+  *Load demo data* button.
+- **Breaking:** for code that drives the view model: everything about the data set on screen
+  (selection, levels, display, hover, TOF profile, playback) moved from `ViewerViewModel` to its
+  projection data pane, `ViewerViewModel.pane` (a `ProjectionPaneViewModel`); for example
+  `vm.set_slice_mode(...)` is now `vm.pane.set_slice_mode(...)`. File loading, the window title,
+  the status line and errors stay on `ViewerViewModel`.
 - The three level modes *Auto*, *Fixed (global range)* and *Manual* became two, *Adaptive* and
   *Locked* (`LevelMode.ADAPTIVE` / `LevelMode.LOCKED`). The global range is now the
   *Lock to global range* action, and editing a level locks it. Toggling the log display no longer
