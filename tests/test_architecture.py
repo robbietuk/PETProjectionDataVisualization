@@ -37,7 +37,7 @@ def imports_of(path: pathlib.Path):
     package = module if path.name == "__init__.py" else module.rsplit(".", 1)[0]
     if path.name == "__init__.py":
         package = module.rsplit(".__init__", 1)[0] if module.endswith(".__init__") else module
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for a in node.names:
@@ -88,7 +88,7 @@ def test_third_party_imports_are_confined(path):
 
 
 def test_swig_gateway_imports_stir_only_lazily():
-    tree = ast.parse((ROOT / "stir_interface" / "swig_gateway.py").read_text())
+    tree = ast.parse((ROOT / "stir_interface" / "swig_gateway.py").read_text(encoding="utf-8"))
     for node in tree.body:                                         # module level
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = [a.name for a in node.names] + [getattr(node, "module", "") or ""]
@@ -156,7 +156,7 @@ def test_theme_and_shared_viewmodel_logic_import_without_qt():
 
 def test_widgets_never_hard_code_colours():
     for name in ("components.py", "window.py", "styling.py", "pane.py", "rail.py", "tof_plot.py"):
-        text = (ROOT / "view" / name).read_text()
+        text = (ROOT / "view" / name).read_text(encoding="utf-8")
         assert not __import__("re").search(r"#[0-9a-fA-F]{6}\b", text), f"{name} hard-codes a colour; use the Palette"
 
 
@@ -171,6 +171,6 @@ def test_the_pane_does_not_depend_on_the_window(rel):
         assert not any(name == m or name.startswith(m + ".") for m in WINDOW_MODULES), (
             f"{rel}:{line} imports {name}: the pane must not know about the window")
     # ``from ..viewmodel import X`` passes the module check above, so check the imported names too
-    tree = ast.parse((ROOT / rel).read_text())
+    tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
     imported = {a.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for a in node.names}
     assert not imported & WINDOW_NAMES, f"{rel} imports {sorted(imported & WINDOW_NAMES)}"

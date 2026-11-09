@@ -31,6 +31,8 @@ THEME_OPTIONS = ChoiceOptions.from_values(tuple(PALETTES), tuple(name.capitalize
 LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
                   "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
                   "log display. Typing a level or dragging the histogram locks at the new values.")
+TOOLBAR_PAD = 8             # above and below the toolbar's content (a card has PAD)
+TOOLBAR_ROW_SPACING = 2     # between the toolbar's axis rows
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
@@ -286,6 +288,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         per axis not shown in the image (which rows, and their state, come from ``vm.pane.axis_rows``)."""
         self.toolbar = ui.Card()
         self.toolbar.setAccessibleName("Slice toolbar")
+        self.toolbar.set_vertical_padding(TOOLBAR_PAD)       # up to three rows: every pixel goes to the image
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(2 * GAP)
         left = QtWidgets.QVBoxLayout()
@@ -303,7 +306,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         row.addLayout(left)
 
         rows = QtWidgets.QVBoxLayout()
-        rows.setSpacing(4)
+        rows.setSpacing(TOOLBAR_ROW_SPACING)
         self.tof_mode_control = ui.SegmentedControl(TOF_MODE_OPTIONS)
         self.tof_mode_control.setAccessibleName("Time of flight: one bin, or the sum, mean or maximum over the bins")
         self.tof_mode_control.choiceChanged.connect(self._slot(lambda: self.vm.pane.set_tof_mode))

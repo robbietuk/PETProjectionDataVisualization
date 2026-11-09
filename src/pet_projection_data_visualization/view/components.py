@@ -74,6 +74,7 @@ class SegmentedControl(ChoiceControl[T]):
         frame = QtWidgets.QFrame(self)
         frame.setObjectName("Segmented")
         row = QtWidgets.QHBoxLayout(frame)
+        self._frame_row = row
         row.setContentsMargins(3, 3, 3, 3)
         row.setSpacing(2)
         outer = QtWidgets.QVBoxLayout(self)
@@ -106,6 +107,12 @@ class SegmentedControl(ChoiceControl[T]):
 
     def set_choice_enabled(self, value: T, enabled: bool) -> None:
         self._buttons[self.options.index_of(value)].setEnabled(enabled)
+
+    def set_compact(self) -> None:
+        """Draw the control as tall as a compact toolbar row (thinner frame, less padding)."""
+        self._frame_row.setContentsMargins(1, 1, 1, 1)
+        for b in self._buttons:
+            b.setProperty("compact", "true")
 
 
 class ChoiceCombo(ChoiceControl[T]):
@@ -146,6 +153,11 @@ class Card(QtWidgets.QFrame):
         self.body = QtWidgets.QVBoxLayout()
         self.body.setSpacing(8)
         lay.addLayout(self.body)
+        self._outer = lay
+
+    def set_vertical_padding(self, pad: int) -> None:
+        """Less padding above and below the content, for a slim card such as the slice toolbar."""
+        self._outer.setContentsMargins(PAD, pad, PAD, pad)
 
 
 class LabeledRow(QtWidgets.QWidget):
@@ -432,6 +444,7 @@ class AxisRowControl(QtWidgets.QWidget):
         self._prev = self._small_button("‹")
         self._next = self._small_button("›")
         self._spin = QtWidgets.QSpinBox()
+        self._spin.setProperty("compact", "true")      # less padding: three rows must not eat the image
         self._spin.setMinimumWidth(64)
         self._slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self._slider.setMinimumWidth(80)
@@ -450,6 +463,8 @@ class AxisRowControl(QtWidgets.QWidget):
         row.addWidget(self._play)
         self.extra = extra
         if extra is not None:
+            if isinstance(extra, SegmentedControl):
+                extra.set_compact()                    # as tall as the rest of the row
             row.addWidget(extra)
         self._slider.valueChanged.connect(self._spin.setValue)
         self._spin.valueChanged.connect(self._slider.setValue)
