@@ -148,6 +148,7 @@ QPushButton[segment="true"] {{ background: transparent; border: none; border-rad
 QPushButton[segment="true"]:hover {{ color: {p.text}; }}
 QPushButton[segment="true"]:checked {{ background: {p.accent}; color: {p.on_accent}; font-weight: 600; }}
 QPushButton[segment="true"]:disabled {{ color: {p.border}; }}
+QPushButton[rail="true"] {{ padding: 10px 2px; font-size: 12px; }}
 QFrame#Segmented {{ background: {p.raised}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL + 2}px; }}
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{

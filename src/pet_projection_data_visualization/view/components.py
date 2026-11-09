@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Callable, Generic, Hashable, Iterable, TypeVar
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..viewmodel.formatting import format_number, parse_number
 from ..viewmodel.options import ChoiceOptions
@@ -46,6 +46,27 @@ class ChoiceControl(QtWidgets.QWidget, Generic[T]):
         raise NotImplementedError
 
 
+class _SegmentButton(QtWidgets.QPushButton):
+    """A segment of a ``SegmentedControl``. The checked one is drawn bold (stylesheet), so the size hints
+    leave room for the bold label: choosing a segment never clips its text."""
+
+    def _bold_extra(self) -> int:
+        bold = QtGui.QFont(self.font())
+        bold.setBold(True)
+        text = self.text()
+        return max(0, QtGui.QFontMetrics(bold).horizontalAdvance(text) - self.fontMetrics().horizontalAdvance(text))
+
+    @override
+    def sizeHint(self) -> QtCore.QSize:
+        hint = super().sizeHint()
+        return QtCore.QSize(hint.width() + self._bold_extra(), hint.height())
+
+    @override
+    def minimumSizeHint(self) -> QtCore.QSize:
+        hint = super().minimumSizeHint()
+        return QtCore.QSize(hint.width() + self._bold_extra(), hint.height())
+
+
 class SegmentedControl(ChoiceControl[T]):
     def __init__(self, options: ChoiceOptions[T], parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(options, parent)
@@ -61,7 +82,7 @@ class SegmentedControl(ChoiceControl[T]):
         self._group.setExclusive(True)
         self._buttons: list[QtWidgets.QPushButton] = []
         for i, label in enumerate(options.labels):
-            b = QtWidgets.QPushButton(label)
+            b = _SegmentButton(label)
             b.setCheckable(True)
             b.setProperty("segment", "true")
             b.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)

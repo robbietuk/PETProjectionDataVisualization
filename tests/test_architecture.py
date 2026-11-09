@@ -155,6 +155,22 @@ def test_theme_and_shared_viewmodel_logic_import_without_qt():
 
 
 def test_widgets_never_hard_code_colours():
-    for name in ("components.py", "window.py", "styling.py"):
+    for name in ("components.py", "window.py", "styling.py", "pane.py", "rail.py", "tof_plot.py"):
         text = (ROOT / "view" / name).read_text()
         assert not __import__("re").search(r"#[0-9a-fA-F]{6}\b", text), f"{name} hard-codes a colour; use the Palette"
+
+
+# ---- the projection data pane is self-contained (#36): a window arranges panes, never the other way round ----
+WINDOW_MODULES = {f"{PKG}.view.window", f"{PKG}.view.rail", f"{PKG}.viewmodel.viewer_viewmodel", f"{PKG}.app"}
+WINDOW_NAMES = {"ViewerViewModel", "ViewerWindow", "IconRail"}
+
+
+@pytest.mark.parametrize("rel", ["view/pane.py", "viewmodel/pane_viewmodel.py"])
+def test_the_pane_does_not_depend_on_the_window(rel):
+    for name, line in imports_of(ROOT / rel):
+        assert not any(name == m or name.startswith(m + ".") for m in WINDOW_MODULES), (
+            f"{rel}:{line} imports {name}: the pane must not know about the window")
+    # ``from ..viewmodel import X`` passes the module check above, so check the imported names too
+    tree = ast.parse((ROOT / rel).read_text())
+    imported = {a.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for a in node.names}
+    assert not imported & WINDOW_NAMES, f"{rel} imports {sorted(imported & WINDOW_NAMES)}"

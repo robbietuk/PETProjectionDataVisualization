@@ -14,33 +14,33 @@ def make_vm(src=None):
 
 def test_metrics_cover_the_six_statistics():
     vm = make_vm(small_demo())
-    assert [k for k, _ in vm.metrics] == ["Min", "Max", "Mean", "Std", "Sum", "Non-zero"]
-    assert all(v for _, v in vm.metrics)
+    assert [k for k, _ in vm.pane.metrics] == ["Min", "Max", "Mean", "Std", "Sum", "Non-zero"]
+    assert all(v for _, v in vm.pane.metrics)
 
 
 def test_metrics_follow_the_slice():
     vm = make_vm(small_demo())
-    before = vm.metrics
-    vm.set_value("axial", 0)
-    assert vm.metrics != before
+    before = vm.pane.metrics
+    vm.pane.set_value("axial", 0)
+    assert vm.pane.metrics != before
 
 
 def test_metrics_and_context_are_cleared_on_load_of_new_data_then_refilled():
     vm = make_vm(small_demo())
     seen = []
-    vm.subscribe(lambda names: seen.append(names))
+    vm.pane.subscribe(lambda names: seen.append(names))
     vm.load(non_tof_source())
     assert any({"metrics", "context"} <= n for n in seen)
-    assert vm.context and not any("TOF" in c for c in vm.context)
+    assert vm.pane.context and not any("TOF" in c for c in vm.pane.context)
 
 
 def test_context_chips_describe_mode_segment_position_and_tof():
     vm = make_vm(small_demo())
-    assert vm.context == ("Sinogram", "segment 0", "axial 3", "TOF bin 2")
-    vm.set_slice_mode(SliceMode.VIEWGRAM)
-    assert vm.context[0] == "Viewgram" and vm.context[2].startswith("view ")
-    vm.set_tof_mode(TofMode.MEAN)
-    assert vm.context[-1] == "TOF mean"
+    assert vm.pane.context == ("Sinogram", "segment 0", "axial 3", "TOF bin 2")
+    vm.pane.set_slice_mode(SliceMode.VIEWGRAM)
+    assert vm.pane.context[0] == "Viewgram" and vm.pane.context[2].startswith("view ")
+    vm.pane.set_tof_mode(TofMode.MEAN)
+    assert vm.pane.context[-1] == "TOF mean"
 
 
 def test_error_can_be_dismissed_and_reappears_on_next_failure():

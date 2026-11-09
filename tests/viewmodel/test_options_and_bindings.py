@@ -4,7 +4,7 @@ import pytest
 from pet_projection_data_visualization.model import SliceMode, TofMode
 from pet_projection_data_visualization.viewmodel import (COLORMAP_OPTIONS, COLORMAPS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS,
                                             TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, LevelMode,
-                                            ViewerViewModel, observed_names)
+                                            ProjectionPaneViewModel, ViewerViewModel, observed_names)
 from pet_projection_data_visualization.viewmodel.observable import ObservableObject, Observed
 
 
@@ -58,8 +58,8 @@ def test_observed_names_in_definition_order_and_inherited():
 
 
 def test_view_model_exposes_the_new_properties():
-    names = observed_names(ViewerViewModel)
-    assert {"metrics", "context", "error", "image"} <= set(names)
+    assert {"error", "status", "loaded", "window_title"} <= set(observed_names(ViewerViewModel))
+    assert {"metrics", "context", "image", "levels", "title"} <= set(observed_names(ProjectionPaneViewModel))
 
 
 def test_binding_runs_only_when_one_of_its_names_changed():

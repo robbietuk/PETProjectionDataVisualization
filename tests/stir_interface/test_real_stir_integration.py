@@ -60,4 +60,4 @@ def test_viewer_stack_on_real_data():
 def test_view_model_loads_a_real_file():
     from pet_projection_data_visualization.sources.loader import make_source
     vm = ViewerViewModel(make_source)
-    assert vm.load(PATH) and vm.image is not None and vm.error is None
+    assert vm.load(PATH) and vm.pane.image is not None and vm.error is None

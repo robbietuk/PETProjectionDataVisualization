@@ -17,41 +17,41 @@ def make_vm(source=None):
 def test_tof_profile_is_not_stale_after_the_selection_changes():
     """The cursor does not move; the slice under it does: the profile must follow without a new hover."""
     vm = make_vm()
-    vm.hover_at(0, 3)
-    assert f"axial {vm.selection.axial}," in vm.tof_profile.title
-    vm.set_value("axial", 1)                            # no hover_at after this
-    assert "axial 1," in vm.tof_profile.title and "view 3," in vm.tof_profile.title
-    expected = vm.dataset.tof_profile(vm.selection.segment, 3, 1, 0)
-    np.testing.assert_allclose(vm.tof_profile.y, expected)
+    vm.pane.hover_at(0, 3)
+    assert f"axial {vm.pane.selection.axial}," in vm.pane.tof_profile.title
+    vm.pane.set_value("axial", 1)                            # no hover_at after this
+    assert "axial 1," in vm.pane.tof_profile.title and "view 3," in vm.pane.tof_profile.title
+    expected = vm.pane.dataset.tof_profile(vm.pane.selection.segment, 3, 1, 0)
+    np.testing.assert_allclose(vm.pane.tof_profile.y, expected)
 
 
 def test_tof_profile_refreshes_after_segment_mode_and_playback_changes():
     vm = make_vm()
-    vm.hover_at(0, 3)
-    vm.set_value("segment", 1)
-    assert "segment 1," in vm.tof_profile.title
-    vm.set_slice_mode(SliceMode.VIEWGRAM)               # same cursor now means (axial 3, tangential 0)
-    assert "axial 3," in vm.tof_profile.title and f"view {vm.selection.view}," in vm.tof_profile.title
-    before = vm.tof_profile
-    vm.set_playing(True)
-    vm.tick()                                           # TOF bin changes, the LOR does not
-    assert vm.tof_profile == before and vm.tof_marker == vm.selection.tof
-    vm.hover_leave()
-    vm.set_value("view", 0)
-    assert vm.tof_profile is None                       # no cursor: no profile for a LOR nobody points at
+    vm.pane.hover_at(0, 3)
+    vm.pane.set_value("segment", 1)
+    assert "segment 1," in vm.pane.tof_profile.title
+    vm.pane.set_slice_mode(SliceMode.VIEWGRAM)               # same cursor now means (axial 3, tangential 0)
+    assert "axial 3," in vm.pane.tof_profile.title and f"view {vm.pane.selection.view}," in vm.pane.tof_profile.title
+    before = vm.pane.tof_profile
+    vm.pane.set_playing(True)
+    vm.pane.tick()                                           # TOF bin changes, the LOR does not
+    assert vm.pane.tof_profile == before and vm.pane.tof_marker == vm.pane.selection.tof
+    vm.pane.hover_leave()
+    vm.pane.set_value("view", 0)
+    assert vm.pane.tof_profile is None                       # no cursor: no profile for a LOR nobody points at
 
 
 def test_a_read_error_stops_playback():
     src = CountingSource(small_demo())
     vm = make_vm(src)
-    vm.set_playing(True)
+    vm.pane.set_playing(True)
     src.fail = True
-    vm.dataset._raw.clear()
-    vm.tick()
-    assert vm.error and not vm.playing
+    vm.pane.dataset._raw.clear()
+    vm.pane.tick()
+    assert vm.error and not vm.pane.playing
     errors = []
     vm.subscribe(lambda n: errors.append(n) if "error" in n else None)
-    vm.tick()                                            # a stale timer firing must not pile up errors
+    vm.pane.tick()                                            # a stale timer firing must not pile up errors
     assert errors == []
 
 
@@ -60,16 +60,16 @@ def test_nan_and_inf_do_not_poison_the_levels():
     arr[0, 0, 0] = np.nan
     arr[1, 1, 1] = np.inf
     vm = make_vm(ArraySource({0: arr}))
-    lo, hi = vm.levels
+    lo, hi = vm.pane.levels
     assert np.isfinite([lo, hi]).all() and hi > lo
-    vm.lock_global_range()
-    lo, hi = vm.levels
+    vm.pane.lock_global_range()
+    lo, hi = vm.pane.levels
     assert np.isfinite([lo, hi]).all() and hi > lo
 
 
 def test_all_nan_slice_still_gets_valid_levels():
     vm = make_vm(ArraySource({0: np.full((4, 3, 5), np.nan, dtype=np.float32)}))
-    lo, hi = vm.levels
+    lo, hi = vm.pane.levels
     assert np.isfinite([lo, hi]).all() and hi > lo
 
 
@@ -83,9 +83,9 @@ def test_global_range_ignores_non_finite_values():
 
 def test_loading_new_data_leaves_manual_mode_consistent():
     vm = make_vm()
-    vm.set_manual_levels(1.0, 2.0)
+    vm.pane.set_manual_levels(1.0, 2.0)
     vm.load(small_demo())
-    assert vm.level_mode is LevelMode.ADAPTIVE and vm.levels != (1.0, 2.0)
+    assert vm.pane.level_mode is LevelMode.ADAPTIVE and vm.pane.levels != (1.0, 2.0)
 
 
 def test_load_demo_command_uses_the_injected_factory():
@@ -96,10 +96,10 @@ def test_load_demo_command_uses_the_injected_factory():
 
 def test_levels_can_be_typed_in_via_numeric_commands():
     vm = make_vm()
-    vm.set_level_bounds(low=0.5)
-    assert vm.level_mode is LevelMode.LOCKED and vm.levels[0] == 0.5
-    hi = vm.levels[1]
-    vm.set_level_bounds(high=hi + 5)
-    assert vm.levels == (0.5, hi + 5)
-    vm.set_level_bounds(low=hi + 100)                           # would invert the range: ignored
-    assert vm.levels == (0.5, hi + 5)
+    vm.pane.set_level_bounds(low=0.5)
+    assert vm.pane.level_mode is LevelMode.LOCKED and vm.pane.levels[0] == 0.5
+    hi = vm.pane.levels[1]
+    vm.pane.set_level_bounds(high=hi + 5)
+    assert vm.pane.levels == (0.5, hi + 5)
+    vm.pane.set_level_bounds(low=hi + 100)                           # would invert the range: ignored
+    assert vm.pane.levels == (0.5, hi + 5)

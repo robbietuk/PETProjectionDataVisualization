@@ -33,17 +33,17 @@ def test_long_locked_playback_repaints_without_losing_none_true_or_false(app):
         win.resize(1200, 800)
         win.show()
         assert vm.load_demo()
-        vm.toggle_level_lock()
+        vm.pane.toggle_level_lock()
         app.processEvents()
-        bar = (tuple(win.hist.getLevels()), tuple(win.hist.getHistogramRange()))
+        bar = (tuple(win.pane.hist.getLevels()), tuple(win.pane.hist.getHistogramRange()))
         before = [sys.getrefcount(o) for o in guard.SINGLETONS]
-        vm.set_playing(True)
+        vm.pane.set_playing(True)
         for _ in range(FRAMES):
-            vm.tick()
+            vm.pane.tick()
             win.repaint()
             app.processEvents()
-        vm.set_playing(False)
-        assert (tuple(win.hist.getLevels()), tuple(win.hist.getHistogramRange())) == bar
+        vm.pane.set_playing(False)
+        assert (tuple(win.pane.hist.getLevels()), tuple(win.pane.hist.getHistogramRange())) == bar
         if guard.needs_guard():
             after = [sys.getrefcount(o) for o in guard.SINGLETONS]
             assert all(a > guard.EXTRA_REFERENCES // 2 for a in after), (before, after)

@@ -41,38 +41,38 @@ def vm_with(source):
 def test_1_load_whose_first_slice_fails_keeps_the_previous_data_set_entirely():
     a = small_demo()
     vm = vm_with(a)
-    title, image, info, ds = vm.window_title, vm.image, vm.info_text, vm.dataset
+    title, image, info, ds = vm.window_title, vm.pane.image, vm.pane.info_text, vm.pane.dataset
     b = FailOn(small_demo(num_views=7), lambda s, t: True)
     assert vm.load(b) is False
     assert "Could not load" in vm.error
-    assert vm.dataset is ds and vm.window_title == title and vm.image is image and vm.info_text == info
-    vm.hover_at(0, 3)                                   # hover still refers to A, consistently
-    assert vm.pixel_text and "view 3" in vm.pixel_text
+    assert vm.pane.dataset is ds and vm.window_title == title and vm.pane.image is image and vm.pane.info_text == info
+    vm.pane.hover_at(0, 3)                                   # hover still refers to A, consistently
+    assert vm.pane.pixel_text and "view 3" in vm.pane.pixel_text
 
 
 # ---- 2: a failed slice read must not move the selection ----------------------------------------
 @pytest.mark.parametrize("change", [
-    lambda vm: vm.set_value("segment", 1),
-    lambda vm: vm.set_slice_mode(SliceMode.VIEWGRAM),
-    lambda vm: vm.set_tof_mode(TofMode.SUM),
-    lambda vm: (vm.set_playing(True), vm.tick()),
+    lambda vm: vm.pane.set_value("segment", 1),
+    lambda vm: vm.pane.set_slice_mode(SliceMode.VIEWGRAM),
+    lambda vm: vm.pane.set_tof_mode(TofMode.SUM),
+    lambda vm: (vm.pane.set_playing(True), vm.pane.tick()),
 ], ids=["set_value", "set_slice_mode", "set_tof_mode", "tick"])
 def test_2_failed_read_keeps_selection_controls_and_picture_consistent(change):
     fail = {"on": False}
     src = FailOn(small_demo(), lambda s, t: fail["on"])
     vm = vm_with(src)
-    vm.set_value("segment", 0)
-    before_sel, before_img, before_dims = vm.selection, vm.image, vm.dimensions
+    vm.pane.set_value("segment", 0)
+    before_sel, before_img, before_dims = vm.pane.selection, vm.pane.image, vm.pane.dimensions
     seen = []
-    vm.subscribe(lambda names: seen.append(set(names)))
+    vm.pane.subscribe(lambda names: seen.append(set(names)))
     fail["on"] = True
-    vm.dataset._raw.clear()                             # every change below must really read
-    vm.dataset._reduced.clear()
+    vm.pane.dataset._raw.clear()                             # every change below must really read
+    vm.pane.dataset._reduced.clear()
     change(vm)
     assert vm.error and "Could not read" in vm.error
-    assert vm.selection == before_sel and vm.image is before_img and vm.dimensions == before_dims
-    assert vm.slice_mode is before_sel.slice_mode and vm.tof_mode is before_sel.tof_mode
-    assert not vm.playing
+    assert vm.pane.selection == before_sel and vm.pane.image is before_img and vm.pane.dimensions == before_dims
+    assert vm.pane.slice_mode is before_sel.slice_mode and vm.pane.tof_mode is before_sel.tof_mode
+    assert not vm.pane.playing
     assert any("dimensions" in n for n in seen)          # the view is told to put its widgets back
 
 
@@ -81,20 +81,20 @@ def test_2_failed_global_level_mode_is_not_left_selected():
     src = FailOn(small_demo(), lambda s, t: fail["on"] and s != 0)
     vm = vm_with(src)
     fail["on"] = True
-    vm.lock_global_range()                  # needs every segment: fails
-    assert vm.level_mode is LevelMode.ADAPTIVE and vm.error
+    vm.pane.lock_global_range()                  # needs every segment: fails
+    assert vm.pane.level_mode is LevelMode.ADAPTIVE and vm.error
 
 
 # ---- 4: global levels cover all TOF bins -------------------------------------------------------
 def test_4_global_levels_do_not_change_during_playback_and_cover_every_bin():
     demo = small_demo()
     vm = vm_with(demo)
-    vm.lock_global_range()
-    levels = {vm.levels}
-    vm.set_playing(True)
+    vm.pane.lock_global_range()
+    levels = {vm.pane.levels}
+    vm.pane.set_playing(True)
     for _ in range(demo.info.num_tof_bins + 1):
-        vm.tick()
-        levels.add(vm.levels)
+        vm.pane.tick()
+        levels.add(vm.pane.levels)
     assert len(levels) == 1
     lo, hi = levels.pop()
     everything = np.stack([demo.get_segment(s, k).ravel().max() for s in demo.info.segments for k in demo.info.tof_bins])
@@ -106,19 +106,19 @@ def test_4_global_levels_do_not_change_during_playback_and_cover_every_bin():
 # ---- 5: level rejection is announced so widgets snap back -----------------------------------------
 def test_5_rejected_level_bounds_renotify_levels_and_keep_them():
     vm = vm_with(small_demo())
-    vm.set_manual_levels(1.0, 2.0)
+    vm.pane.set_manual_levels(1.0, 2.0)
     seen = []
-    vm.subscribe(lambda names: seen.append(set(names)))
-    vm.set_level_bounds(low=5.0)
-    assert vm.levels == (1.0, 2.0) and any("levels" in n for n in seen) and "Ignored" in vm.status
-    vm.set_manual_levels(float("nan"), 3.0)
-    assert vm.levels == (1.0, 2.0)
+    vm.pane.subscribe(lambda names: seen.append(set(names)))
+    vm.pane.set_level_bounds(low=5.0)
+    assert vm.pane.levels == (1.0, 2.0) and any("levels" in n for n in seen) and "Ignored" in vm.status
+    vm.pane.set_manual_levels(float("nan"), 3.0)
+    assert vm.pane.levels == (1.0, 2.0)
 
 
 def test_5_tiny_valued_data_gets_a_usable_level_range():
     data = np.full((4, 3, 5), 3e-9, dtype=np.float32)    # constant tiny values: hi == lo
     vm = vm_with(ArraySource({0: data}))
-    lo, hi = vm.levels
+    lo, hi = vm.pane.levels
     assert lo == pytest.approx(3e-9) and hi > lo and hi - lo < 1e-9
 
 
