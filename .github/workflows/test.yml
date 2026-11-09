@@ -25,6 +25,7 @@ jobs:
         os: [ubuntu-24.04, macos-latest, windows-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         pyside6: [""]           # "": whatever pip resolves from pyproject.toml
+        experimental: [false]   # true only in an include below, for a Python that may still fail
         include:
           # A Python that PySide6, numpy or pyqtgraph don't support yet can be tried here first with
           # `experimental: true`: the job is then named "(allowed to fail)" and never blocks a merge.
