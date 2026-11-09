@@ -101,6 +101,7 @@ class Harness:
         w.pane.img.setRect = lambda r: self.rect.append(r)
         w.info_view.setPlainText = self.info.append
         w.pane.readout.setText = self.pixel.append
+        w.pane._place_readout = lambda: None          # real Qt geometry; test_layout_real_qt covers it
         w.pane.tof_curve.setData = lambda x, y: self.curve.append((list(x), list(y)))
         w.pane.tof_marker_line.setValue = self.marker.append
         w.fps_spin.setValue = lambda v: None
@@ -163,7 +164,7 @@ def test_mouse_move_inside_the_plot_drives_hover_and_profile(window_module):
     h.win.pane.plot.vb = types.SimpleNamespace(sceneBoundingRect=lambda: types.SimpleNamespace(contains=lambda p: True),
                                           mapSceneToView=lambda p: P())
     h.win.pane._on_mouse_moved(object())
-    assert h.pixel[-1].startswith("view 3, tangential -7:")
+    assert "View        3\n" in h.pixel[-1] and "Tangential  -7\n" in h.pixel[-1]
     assert h.curve and len(h.curve[-1][0]) == 5
 
 

@@ -73,6 +73,21 @@ def format_pixel(image: SliceImage, row: int, col: int, value: float) -> str:
     return f"{image.row_axis} {idx[image.row_axis]}, {image.col_axis} {idx[image.col_axis]}:  {value:.6g}"
 
 
+def format_readout(info: ProjDataInfo, sel: Selection, image: SliceImage, row: int, col: int,
+                   value: float) -> tuple[tuple[str, str], ...]:
+    """(label, value) lines of the cursor readout: the bin under the cursor (segment, view, axial and
+    tangential position, the TOF bin or reduction) and its value."""
+    lor = {d: sel.get(d) for d in ("segment", "view", "axial", "tangential")}
+    lor.update(image.indices_at(row, col))
+    lines = [("Segment", str(lor["segment"])), ("View", str(lor["view"])), ("Axial", str(lor["axial"])),
+             ("Tangential", str(lor["tangential"]))]
+    if info.is_tof:
+        lines.append(("TOF bin", str(sel.tof)) if sel.tof_mode is TofMode.BIN
+                     else ("TOF", f"{sel.tof_mode.name.capitalize()} of {info.num_tof_bins} bins"))
+    lines.append(("Value", f"{value:.6g}"))
+    return tuple(lines)
+
+
 def format_profile_title(segment: int, view: int, axial: int, tangential: int, total: float) -> str:
     return f"segment {segment}, view {view}, axial {axial}, tangential {tangential}   (sum {total:.6g})"
 

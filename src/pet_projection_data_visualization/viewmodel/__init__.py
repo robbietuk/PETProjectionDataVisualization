@@ -6,10 +6,12 @@ from .bindings import BindingRegistry, observed_names
 from .options import (COLORMAP_OPTIONS, COLORMAPS, KEYBOARD_SHORTCUTS, LEVEL_MODE_OPTIONS, PLAY_MODE_OPTIONS,
                       SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS, ChoiceOptions, LevelMode)
 from .playback import PlayMode, next_play_value
+from .readout import Corner, readout_corner
 from .pane_viewmodel import AxisRow, DisplayImage, ProjectionPaneViewModel, TofProfile, play_blocker, toolbar_axes
 from .viewer_viewmodel import ViewerViewModel
 
-__all__ = ["AxisRow", "BindingRegistry", "COLORMAPS", "COLORMAP_OPTIONS", "ChoiceOptions", "DisplayImage",
+__all__ = ["AxisRow", "BindingRegistry", "COLORMAPS", "COLORMAP_OPTIONS", "ChoiceOptions", "Corner", "DisplayImage",
            "KEYBOARD_SHORTCUTS", "LEVEL_MODE_OPTIONS", "LevelMode", "ObservableObject", "Observed",
            "PLAY_MODE_OPTIONS", "PlayMode", "ProjectionPaneViewModel", "SLICE_MODE_OPTIONS", "TOF_MODE_OPTIONS",
-           "TofProfile", "ViewerViewModel", "next_play_value", "observed_names", "play_blocker", "toolbar_axes"]
+           "TofProfile", "ViewerViewModel", "next_play_value", "observed_names", "play_blocker", "readout_corner",
+           "toolbar_axes"]

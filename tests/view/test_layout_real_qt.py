@@ -51,11 +51,11 @@ def test_rail_has_the_four_flyouts_all_closed_at_start(win):
 def test_clicking_a_rail_button_pins_its_flyout_and_clicking_again_closes_it(win, app):
     win.rail.buttons["display"].click()
     app.processEvents()
-    assert win.rail.open_flyout == "display" and win.level_control.isVisible() and win.cmap_control.isVisible()
+    assert win.rail.open_flyout == "display" and win.log_switch.isVisible() and win.cmap_control.isVisible()
     assert win.rail.buttons["display"].isChecked()
     win.rail.buttons["data"].click()                    # another one replaces it
     app.processEvents()
-    assert win.rail.open_flyout == "data" and win.path_edit.isVisible() and not win.level_control.isVisible()
+    assert win.rail.open_flyout == "data" and win.path_edit.isVisible() and not win.log_switch.isVisible()
     assert not win.rail.buttons["display"].isChecked()
     win.rail.buttons["data"].click()
     app.processEvents()
@@ -80,8 +80,10 @@ def test_every_old_card_control_has_a_home(win):
     flyout = {key: win.rail.pages[key] for key in win.rail.pages}
     assert flyout["data"].isAncestorOf(win.path_edit)
     assert flyout["info"].isAncestorOf(win.info_view)
-    for w in (win.cmap_control, win.level_control, win.global_button, win.log_switch, *win.level_edits.values()):
+    for w in (win.cmap_control, win.log_switch):
         assert flyout["display"].isAncestorOf(w)
+    for w in (win.level_control, win.global_button, *win.level_edits.values()):   # beside the colour bar (phase 4)
+        assert win.pane.level_panel.isAncestorOf(w) and w.isVisible()
     assert flyout["settings"].isAncestorOf(win.fps_spin)
     assert flyout["settings"].isAncestorOf(win.play_mode_control)
     for w in (win.mode_control, win.tof_mode_control, *win.dim_controls.values()):

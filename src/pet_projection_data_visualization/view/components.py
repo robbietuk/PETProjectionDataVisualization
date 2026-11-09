@@ -10,7 +10,8 @@ Shared behaviour is written once:
 """
 from __future__ import annotations
 
-from typing import Callable, Generic, Hashable, Iterable, TypeVar
+import contextlib
+from typing import Callable, Generator, Generic, Hashable, Iterable, TypeVar
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -20,6 +21,16 @@ from ._compat import override
 from .theme import CHIP_HEIGHT, GAP, PAD
 
 T = TypeVar("T", bound=Hashable)
+
+
+@contextlib.contextmanager
+def wait_cursor() -> Generator[None, None, None]:
+    """Show the busy cursor while a command runs (reading a slice or a whole data set can take a while)."""
+    QtWidgets.QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.CursorShape.WaitCursor))
+    try:
+        yield
+    finally:
+        QtWidgets.QApplication.restoreOverrideCursor()
 
 
 def silently(widget: QtWidgets.QWidget, fn: Callable[[], object]) -> None:

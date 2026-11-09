@@ -12,14 +12,13 @@ logic, no data access, no formatting; colours come from the active ``Palette``.
 """
 from __future__ import annotations
 
-import contextlib
 import os
-from typing import Callable, Generator, ParamSpec, TypeVar, cast
+from typing import Callable, ParamSpec, TypeVar, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..model import DIMENSIONS
-from ..viewmodel import (COLORMAP_OPTIONS, KEYBOARD_SHORTCUTS, LEVEL_MODE_OPTIONS, PLAY_MODE_OPTIONS,
+from ..viewmodel import (COLORMAP_OPTIONS, KEYBOARD_SHORTCUTS, PLAY_MODE_OPTIONS,
                          SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, ViewerViewModel)
 from . import components as ui
 from .pane import ProjectionDataPane
@@ -28,9 +27,6 @@ from .styling import apply_theme
 from .theme import DARK, GAP, LIGHT, PALETTES, Palette
 
 THEME_OPTIONS = ChoiceOptions.from_values(tuple(PALETTES), tuple(name.capitalize() for name in PALETTES))
-LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
-                  "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
-                  "log display. Typing a level or dragging the histogram locks at the new values.")
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
@@ -52,15 +48,6 @@ def _section(title: str) -> QtWidgets.QLabel:
     label = QtWidgets.QLabel(title)
     label.setObjectName("Section")
     return label
-
-
-@contextlib.contextmanager
-def _wait_cursor() -> Generator[None, None, None]:
-    QtWidgets.QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.CursorShape.WaitCursor))
-    try:
-        yield
-    finally:
-        QtWidgets.QApplication.restoreOverrideCursor()
 
 
 class ViewerWindow(QtWidgets.QMainWindow):
@@ -204,15 +191,6 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _build_display_flyout(self, display: ui.Card) -> None:
         self.cmap_control = ui.ChoiceCombo(COLORMAP_OPTIONS)
         self.cmap_control.choiceChanged.connect(self._slot(lambda: self.vm.pane.set_colormap))
-        self.level_control = ui.SegmentedControl(LEVEL_MODE_OPTIONS)      # Adaptive | Locked
-        self.level_control.setAccessibleName("Colour levels: adaptive or locked")
-        self.level_control.setToolTip(LEVEL_LOCK_TIP)
-        self.level_control.choiceChanged.connect(self._slot(lambda: self.vm.pane.set_level_mode))
-        self.global_button = QtWidgets.QPushButton("Lock to global range")
-        self.global_button.setAccessibleName("Lock colour levels to the global range of the data set")
-        self.global_button.setToolTip("Lock Min/Max at the range of the whole data set in the current TOF mode "
-                                      "(reads every segment once).")
-        self.global_button.clicked.connect(lambda: self._run(self.vm.pane.lock_global_range))
         self.log_switch = QtWidgets.QCheckBox("log(1 + x) display")
         self.log_switch.toggled.connect(self._slot(lambda: self.vm.pane.set_log_display))
         self.theme_control = ui.SegmentedControl(THEME_OPTIONS)
@@ -222,18 +200,6 @@ class ViewerWindow(QtWidgets.QMainWindow):
         display.body.addWidget(ui.LabeledRow("Colour map", self.cmap_control))
         display.body.addWidget(self.log_switch)
         display.body.addWidget(ui.LabeledRow("Theme", self.theme_control))
-        # the colour levels move beside the colour bar in a later step of #36; until then they live here
-        self.levels_section = _section("Colour levels")
-        display.body.addWidget(self.levels_section)
-        display.body.addWidget(self.level_control)          # full width, like the other mode controls
-        display.body.addWidget(self.global_button)
-        self.level_edits: dict[str, ui.NumberEdit] = {}
-        for key, label in (("low", "Min level"), ("high", "Max level")):
-            edit = ui.NumberEdit()                   # any magnitude, e.g. 1e-8; commits on Enter/focus-out
-            edit.setMinimumWidth(96)                 # a minimum, not a fixed width: the panel can narrow
-            edit.valueEdited.connect(self._level_bound_slot(key))
-            self.level_edits[key] = edit
-            display.body.addWidget(ui.LabeledRow(label, edit))
 
     def _build_settings_flyout(self, card: ui.Card) -> None:
         card.body.addWidget(_section("Profile plots"))
@@ -277,6 +243,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(GAP)
         self.pane = ProjectionDataPane(self.vm.pane, self.palette_tokens)
+        # the colour level controls are the pane's, beside its colour bar
+        self.level_control = self.pane.level_control
+        self.level_edits = self.pane.level_edits
+        self.global_button = self.pane.global_button
         col.addWidget(self.pane, 1)
         col.addWidget(self._build_toolbar())
         return page
@@ -377,17 +347,13 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     # ------------------------------------------------------------------ user input -> commands
     def _run(self, command: Callable[_P, object], *args: _P.args, **kwargs: _P.kwargs) -> None:
-        with _wait_cursor():
+        with ui.wait_cursor():
             command(*args, **kwargs)
 
     def _slot(self, command: Callable[[], Callable[[_T], object]]) -> Callable[[_T], None]:
         """A slot for a one-argument signal: runs ``command()(value)`` like every other user command.
         ``command`` returns the view-model method, so it is looked up on every signal, not once."""
         return lambda value: self._run(command(), value)
-
-    def _level_bound_slot(self, key: str) -> Callable[[float], None]:
-        """A slot for one level box: ``key`` is ``low`` or ``high`` (the keyword of ``set_level_bounds``)."""
-        return lambda value: self._run(self.vm.pane.set_level_bounds, **{key: value})
 
     def _on_light_toggled(self, on: bool) -> None:
         self.set_palette(LIGHT if on else DARK)
@@ -452,9 +418,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         p(("playing", "play_axis"), self._paint_playing)
         p("play_mode", lambda: self.play_mode_control.set_choice(pane.play_mode))
         p("colormap", lambda: self.cmap_control.set_choice(pane.colormap))
-        p("level_mode", lambda: self.level_control.set_choice(pane.level_mode))
         p("log_display", lambda: ui.silently(self.log_switch, lambda: self.log_switch.setChecked(pane.log_display)))
-        p("levels", self._paint_level_edits)
         p("info_text", lambda: self.info_view.setPlainText(pane.info_text))
         p(("summary", "colormap", "log_display", "show_tof_profile", "fps", "play_mode"), self.rail.refresh_peek)
 
@@ -512,10 +476,3 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self._timer.start(int(1000 / self.vm.pane.fps))
         else:
             self._timer.stop()
-
-    def _paint_level_edits(self) -> None:
-        levels = self.vm.pane.levels
-        if levels is None:
-            return
-        for key, value in zip(("low", "high"), levels):
-            self.level_edits[key].set_value(value)

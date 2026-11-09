@@ -2,18 +2,22 @@
 """VIEW layer: the projection data pane, the self-contained display of one data set.
 
 A pane shows what its ``ProjectionPaneViewModel`` holds: the title and context chips, the image with
-its colour bar (histogram), the cursor readout, the slice metrics and, in a resizable column on the
-right, the profile plots (today the TOF profile). It binds only to its own view model and knows
+its colour bar (histogram) and, beside it, the colour level controls (Adaptive | Locked, Max, Min and
+the global range), the cursor readout floating in a corner of the image, the slice metrics and, in a
+resizable column on the right, the profile plots (today the TOF profile). It binds only to its own view model and knows
 nothing about the window, the rail or the toolbar, so a window can later hold several panes (#20).
 """
 from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
+from typing import Callable, ParamSpec
+
 from PySide6 import QtCore, QtWidgets
 
-from ..viewmodel import BindingRegistry, LevelMode, ProjectionPaneViewModel
+from ..viewmodel import LEVEL_MODE_OPTIONS, BindingRegistry, Corner, LevelMode, ProjectionPaneViewModel
 from . import components as ui
+from ._compat import override
 from .styling import fit_graphics_width, style_graphics_widget, style_histogram, style_plot
 from .theme import DARK, GAP, Palette
 from .tof_plot import TofViewBox
@@ -22,6 +26,18 @@ pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows ->
 
 PLOT_COLUMN_WIDTH = 340       # initial width of the profile plot column; the splitter resizes it
 NO_PROFILE = "hover over the image"
+READOUT_MARGIN = 8            # between the readout and the edges of the image
+LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
+                  "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
+                  "log display. Typing a level or dragging the histogram locks at the new values.")
+
+_P = ParamSpec("_P")
+
+
+def readout_text(lines: tuple[tuple[str, str], ...]) -> str:
+    """The readout's (label, value) lines as aligned text (the readout uses a monospace font)."""
+    width = max((len(label) for label, _ in lines), default=0)
+    return "\n".join(f"{label:<{width}}  {value}" for label, value in lines)
 
 
 def colormap(name: str) -> pg.ColorMap:
@@ -97,15 +113,63 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.glw.addItem(self.hist, row=0, col=1)
         self.hist.sigLevelChangeFinished.connect(self._on_user_levels)
         self.plot.scene().sigMouseMoved.connect(self._on_mouse_moved)
-        image_card.body.addWidget(self.glw, 1)
-        self.readout = QtWidgets.QLabel("")          # value under the cursor
+        # the value under the cursor floats over a corner of the image, out of the cursor's way
+        self.readout = QtWidgets.QLabel("", self.glw)
         self.readout.setObjectName("PixelReadout")
         self.readout.setAccessibleName("Value under the cursor")
-        image_card.body.addWidget(self.readout)
+        self.readout.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)   # the image still gets the mouse
+        self.readout.setVisible(False)
+        self.glw.installEventFilter(self)          # resizes move the readout with the image
+        image_row = QtWidgets.QHBoxLayout()
+        image_row.setSpacing(GAP)
+        image_row.addWidget(self.glw, 1)
+        image_row.addWidget(self._build_level_panel())
+        image_card.body.addLayout(image_row, 1)
         col.addWidget(image_card, 1)
         self.metrics = ui.MetricGrid(columns=6)
         col.addWidget(self.metrics)
         return area
+
+    def _build_level_panel(self) -> QtWidgets.QWidget:
+        """The colour level controls, beside the colour bar: Max at the top, Min at the bottom, like the bar."""
+        self.level_panel = QtWidgets.QFrame()
+        self.level_panel.setObjectName("LevelPanel")
+        self.level_panel.setAccessibleName("Colour levels")
+        # as wide as its widest control (Adaptive | Locked), so no label is ever cut off
+        self.level_panel.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Preferred)
+        col = QtWidgets.QVBoxLayout(self.level_panel)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(6)
+        self.level_edits: dict[str, ui.NumberEdit] = {}
+        for key, label in (("high", "Max level"), ("low", "Min level")):
+            edit = ui.NumberEdit()                   # any magnitude, e.g. 1e-8; commits on Enter/focus-out
+            edit.setMinimumWidth(96)
+            edit.setAccessibleName(label)
+            edit.setToolTip(f"{label}: type a value and press Enter to lock the colour levels there")
+            edit.valueEdited.connect(self._level_bound_slot(key))
+            self.level_edits[key] = edit
+        self.level_control = ui.SegmentedControl(LEVEL_MODE_OPTIONS)      # Adaptive | Locked
+        self.level_control.setAccessibleName("Colour levels: adaptive or locked")
+        self.level_control.setToolTip(LEVEL_LOCK_TIP)
+        self.level_control.choiceChanged.connect(self._on_level_mode)
+        self.global_button = QtWidgets.QPushButton("Global range")
+        self.global_button.setAccessibleName("Lock colour levels to the global range of the data set")
+        self.global_button.setToolTip("Lock Min/Max at the range of the whole data set in the current TOF mode "
+                                      "(reads every segment once).")
+        self.global_button.clicked.connect(lambda _=False: self._run(self.vm.lock_global_range))
+        caption = QtWidgets.QLabel("Max")
+        caption.setObjectName("Section")
+        col.addWidget(caption)
+        col.addWidget(self.level_edits["high"])
+        col.addStretch(1)
+        col.addWidget(self.level_control)
+        col.addWidget(self.global_button)
+        col.addStretch(1)
+        caption = QtWidgets.QLabel("Min")
+        caption.setObjectName("Section")
+        col.addWidget(caption)
+        col.addWidget(self.level_edits["low"])
+        return self.level_panel
 
     def _build_plot_column(self) -> QtWidgets.QWidget:
         """The profile plots, stacked in a vertical splitter so each can be resized."""
@@ -152,6 +216,17 @@ class ProjectionDataPane(QtWidgets.QWidget):
         fit_graphics_width(self.glw)       # the plot title or the axes may have changed
 
     # ------------------------------------------------------------------ user input -> commands
+    def _run(self, command: Callable[_P, object], *args: _P.args, **kwargs: _P.kwargs) -> None:
+        with ui.wait_cursor():
+            command(*args, **kwargs)
+
+    def _on_level_mode(self, mode: LevelMode) -> None:
+        self._run(self.vm.set_level_mode, mode)
+
+    def _level_bound_slot(self, key: str) -> Callable[[float], None]:
+        """A slot for one level box: ``key`` is ``low`` or ``high`` (the keyword of ``set_level_bounds``)."""
+        return lambda value: self._run(self.vm.set_level_bounds, **{key: value})
+
     def _on_user_levels(self) -> None:
         if not self._applying_levels:
             lo, hi = self.hist.getLevels()
@@ -177,12 +252,45 @@ class ProjectionDataPane(QtWidgets.QWidget):
         b("colormap", lambda: self.hist.gradient.setColorMap(colormap(self.vm.colormap)))
         b("image", self._draw_image)
         b(("levels", "level_mode"), self._paint_levels)       # after the image, as before
-        b("pixel_text", lambda: self.readout.setText(self.vm.pixel_text))
+        b("level_mode", lambda: self.level_control.set_choice(self.vm.level_mode))
+        b("levels", self._paint_level_edits)
+        b(("readout", "readout_corner"), self._paint_readout)
+        b("pixel_text", lambda: self.readout.setAccessibleDescription(self.vm.pixel_text))   # one line for screen readers
         b("tof_range", self._paint_tof_range)
         b("tof_profile", self._paint_tof_profile)
         b("tof_marker", self._paint_tof_marker)
         b("metrics", lambda: self.metrics.set_metrics(self.vm.metrics))
         b("context", lambda: self.chips.set_chips(self.vm.context))
+
+    def _paint_level_edits(self) -> None:
+        levels = self.vm.levels
+        if levels is None:
+            return
+        for key, value in zip(("low", "high"), levels):
+            self.level_edits[key].set_value(value)
+
+    def _paint_readout(self) -> None:
+        lines = self.vm.readout
+        self.readout.setText(readout_text(lines))
+        self.readout.setVisible(bool(lines))
+        if lines:
+            self.readout.adjustSize()
+            self._place_readout()
+
+    def _place_readout(self) -> None:
+        """Put the readout in ``readout_corner`` of the image (the plot's view box, inside the axes)."""
+        box = self.glw.mapFromScene(self.plot.vb.sceneBoundingRect()).boundingRect()
+        corner: Corner = self.vm.readout_corner
+        size = self.readout.sizeHint()
+        x = box.right() - size.width() - READOUT_MARGIN if corner.right else box.left() + READOUT_MARGIN
+        y = box.bottom() - size.height() - READOUT_MARGIN if corner.bottom else box.top() + READOUT_MARGIN
+        self.readout.setGeometry(max(0, x), max(0, y), size.width(), size.height())
+
+    @override
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:  # noqa: N802 - Qt override
+        if watched is self.glw and event.type() == QtCore.QEvent.Type.Resize:
+            QtCore.QTimer.singleShot(0, self._place_readout)     # once the plot inside has been resized too
+        return False
 
     def _paint_tof_available(self) -> None:
         shown = self.vm.tof_available and self.vm.show_tof_profile

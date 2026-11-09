@@ -114,6 +114,12 @@ These came out of two independent code reviews, before the split from STIR:
   tangential, the indices, time of flight and Play) move to a toolbar under the image. The cursor
   value is shown under the image instead of in the status bar. The Data flyout also has a
   *Load demo data* button.
+- **Colour levels by the colour bar, readout over the image (#36, phase 4).** The level controls
+  (Adaptive | Locked, Max, Min and *Global range*, which was *Lock to global range*) moved from the
+  Display flyout to a column beside the colour bar, Max at the top and Min at the bottom like the
+  bar. The cursor readout floats in a corner of the image and lists the segment, view, axial and
+  tangential position, the TOF bin (or the TOF reduction) and the value; when the cursor comes close
+  to it, it moves to another corner.
 - **Breaking:** for code that drives the view model: everything about the data set on screen
   (selection, levels, display, hover, TOF profile, playback) moved from `ViewerViewModel` to its
   projection data pane, `ViewerViewModel.pane` (a `ProjectionPaneViewModel`); for example

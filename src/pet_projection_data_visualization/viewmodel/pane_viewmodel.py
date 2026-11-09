@@ -27,6 +27,7 @@ from . import formatting
 from .observable import Observed, ObservableObject
 from .options import COLORMAPS, LevelMode
 from .playback import PlayMode, next_play_value
+from .readout import DEFAULT_CORNER, Corner, readout_corner
 
 DIM_LABELS = {
     "segment": "Segment",
@@ -163,6 +164,8 @@ class ProjectionPaneViewModel(ObservableObject):
     summary: Observed[str] = Observed("")            # scanner, dimensions and TOF yes/no, in a few lines
     show_tof_profile: Observed[bool] = Observed(True)   # the user's choice; shown only for TOF data
     pixel_text: Observed[str] = Observed("")
+    readout: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) of the bin under the cursor
+    readout_corner: Observed[Corner] = Observed(DEFAULT_CORNER)     # where the readout floats over the image
     tof_profile: Observed[TofProfile | None] = Observed(None)
     metrics: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) for the current slice
     context: Observed[tuple[str, ...]] = Observed(())   # chips describing the current selection
@@ -231,6 +234,8 @@ class ProjectionPaneViewModel(ObservableObject):
         self.tof_range = (dataset.info.min_tof, dataset.info.max_tof) if dataset.info.is_tof else None
         self.tof_profile = None
         self.pixel_text = ""
+        self.readout = ()
+        self.readout_corner = DEFAULT_CORNER
         self._cursor = None
         self._commit(dataset, selection, rendered)
         return was_locked
@@ -397,22 +402,27 @@ class ProjectionPaneViewModel(ObservableObject):
         if self._slice is None or self._dataset is None:
             return
         self._cursor = (x, y)
+        if (im := self.image) is not None:     # move the readout out of the cursor's way
+            self.readout_corner = readout_corner(self.readout_corner, (x - im.x0) / im.width, (y - im.y0) / im.height)
         self._hover(x, y)
 
     @_command
     def hover_leave(self) -> None:
         self._cursor = None
         self.pixel_text = ""
+        self.readout = ()
 
     def _hover(self, x: float, y: float) -> None:
-        image, (dataset, _) = self._slice, self._loaded()
+        image, (dataset, sel) = self._slice, self._loaded()
         assert image is not None, "a slice is shown whenever data is loaded"
         row, col = image.pixel_from_axes(x, y)
         value = image.value_at(row, col)
         if value is None:
             self.pixel_text = ""
+            self.readout = ()
             return
         self.pixel_text = formatting.format_pixel(image, row, col, value)
+        self.readout = formatting.format_readout(dataset.info, sel, image, row, col, value)
         if dataset.info.is_tof and (row, col) != self._last_pixel:
             self._last_pixel = (row, col)
             self._update_tof_profile(image.indices_at(row, col))
