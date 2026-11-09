@@ -136,7 +136,7 @@ class IconRail(QtWidgets.QFrame):
             self._place()
             self.flyouts.raise_()
         self.flyouts.setVisible(key is not None and self._host is not None)   # only beside a placed rail
-        self._watch_app(key is not None)
+        self._watch_app(key is not None and self.isVisible())    # a hidden rail starts watching when shown
         if key is not None and focus:
             self._focus_first_control(self.pages[key])
         elif key is None and closing is not None and had_focus:
@@ -238,10 +238,22 @@ class IconRail(QtWidgets.QFrame):
         height = max(0, min(wanted, self._host.height() - top - FLYOUT_GAP))
         self.flyouts.setGeometry(self.geometry().right() + 1 + FLYOUT_GAP, top, FLYOUT_WIDTH + 2, height)
 
+    @property
+    def watching_app(self) -> bool:
+        """Is the application-wide Esc/click watcher installed (only while a flyout is open and shown)?"""
+        return self._watching_app
+
     @override
     def event(self, event: QtCore.QEvent) -> bool:
-        if event.type() == QtCore.QEvent.Type.ParentChange:
+        kind = event.type()
+        if kind == QtCore.QEvent.Type.ParentChange:
             self._attach()                  # the flyouts belong to the same window as the rail
+        elif kind == QtCore.QEvent.Type.Hide:
+            # a hidden or closed window must not leave a filter on every event of the application: it
+            # would outlive the window's widgets while they are torn down
+            self._watch_app(False)
+        elif kind == QtCore.QEvent.Type.Show:
+            self._watch_app(self._open is not None)
         return super().event(event)
 
     @override

@@ -43,6 +43,8 @@ def win(app):
     w.close()
     if w.palette_tokens is not DARK:
         w.set_palette(DARK)                    # the theme is application-wide: leave it as it was
+    w.deleteLater()                            # gone now, not at some later test's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 def _hover(widget, inside=True):
@@ -284,3 +286,26 @@ def test_a_rail_on_its_own_peeks_only_once_placed(app):
     rail.show_peek("b")
     assert rail.peeking is None
     host.close()
+
+
+def test_a_hidden_window_does_not_leave_its_watcher_on_the_application(app):
+    """The Esc/click watcher is application-wide: a closed window must not leave it behind, where it would
+    see every event of the next window while this one's widgets are torn down."""
+    rail = IconRail()
+    rail.add_flyout("a", "A", "Alpha", "tip")
+    host = QtWidgets.QWidget()
+    QtWidgets.QHBoxLayout(host).addWidget(rail)
+    host.show()
+    rail.open("a")
+    assert rail.watching_app
+    host.close()
+    assert not rail.watching_app and rail.open_flyout == "a"      # the flyout comes back with the window
+    host.show()
+    assert rail.watching_app
+    rail.open(None)
+    assert not rail.watching_app
+    host.close()
+    rail.open("a")                                                  # opened while hidden: nothing to watch
+    assert not rail.watching_app
+    host.deleteLater()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)

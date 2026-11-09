@@ -33,6 +33,8 @@ def shown_window(app):
     yield w
     w._timer.stop()
     w.close()
+    w.deleteLater()                            # gone now, not at some later module's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 @pytest.fixture

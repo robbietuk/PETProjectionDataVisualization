@@ -9,7 +9,7 @@ pytest.importorskip("PySide6")
 pytest.importorskip("pyqtgraph")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6 import QtWidgets  # noqa: E402
+from PySide6 import QtCore, QtWidgets  # noqa: E402
 
 from fakes import small_demo  # noqa: E402
 from pet_projection_data_visualization.view.window import ViewerWindow  # noqa: E402
@@ -31,7 +31,10 @@ def win(app):
     app.processEvents()
     yield w
     w._timer.stop()
+    w.rail.open(None)
     w.close()
+    w.deleteLater()                            # gone now, not at some later test's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 def _rect_in(widget, ancestor):

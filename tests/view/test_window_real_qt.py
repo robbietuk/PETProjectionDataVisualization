@@ -31,6 +31,8 @@ def win(app):
     yield w
     w._timer.stop()
     w.close()
+    w.deleteLater()                            # gone now, not at some later test's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 def test_user_edits_flow_into_the_view_model(win):

@@ -27,6 +27,14 @@ def ini(tmp_path):
     return str(tmp_path / "viewer.ini")
 
 
+def _dispose(win):
+    """Close (which saves) and delete now, not at some later test's processEvents()."""
+    win._timer.stop()
+    win.close()
+    win.deleteLater()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
+
+
 def _window(ini_path, palette=DARK):
     vm = ViewerViewModel(lambda o: o)
     settings = QtCore.QSettings(ini_path, QtCore.QSettings.Format.IniFormat)
@@ -48,7 +56,7 @@ def test_a_new_window_starts_where_the_last_one_closed(app, ini, monkeypatch):
     QtWidgets.QApplication.processEvents()
     geometry = bytes(win.saveGeometry())
     panels = [bytes(splitter.saveState()) for splitter in (win.pane.splitter, win.pane.plot_column)]
-    win.close()                                         # saves
+    _dispose(win)                                       # saves
     settings = QtCore.QSettings(ini, QtCore.QSettings.Format.IniFormat)
     assert saved_theme(settings) == "light"
 
@@ -70,14 +78,14 @@ def test_a_new_window_starts_where_the_last_one_closed(app, ini, monkeypatch):
         QtWidgets.QApplication.processEvents()
         assert len(restored) == 3
     finally:
-        again.close()
+        _dispose(again)
 
 
 def test_without_settings_nothing_is_saved(app, ini):
     vm = ViewerViewModel(lambda o: o)
     win = ViewerWindow(vm)
     win.save_settings()                                 # no QSettings: a no-op
-    win.close()
+    _dispose(win)
     assert not os.path.exists(ini)
 
 
@@ -92,7 +100,7 @@ def test_a_damaged_settings_file_starts_from_the_defaults(app, ini):
     try:
         assert win.vm.pane.colormap == "viridis" and win.vm.recent_files == ()
     finally:
-        win.close()
+        _dispose(win)
 
 
 def test_launch_uses_the_saved_theme_unless_one_is_given(app, monkeypatch):
@@ -116,6 +124,5 @@ def test_launch_uses_the_saved_theme_unless_one_is_given(app, monkeypatch):
         settings.sync()
         for window in QtWidgets.QApplication.topLevelWidgets():
             if isinstance(window, ViewerWindow):
-                window._timer.stop()
-                window.close()
+                _dispose(window)
     assert themes == ["light", "dark"]

@@ -167,7 +167,8 @@ QPushButton[segment="true"]:disabled {{ color: {p.border}; background: transpare
 QFrame#Segmented {{ background: {p.raised}; border: 1px solid {p.border_subtle}; border-radius: {RADIUS_SMALL + 1}px; }}
 QPushButton[rail="true"] {{ padding: 10px 2px; font-size: {FONT_SIZE_SMALL + 1}px; }}
 QPushButton[align="left"] {{ text-align: left; padding: 4px 8px; }}
-QPushButton[compact="true"] {{ padding: 4px 8px; min-width: 12px; }}
+QPushButton[compact="true"] {{ padding: 2px 8px; min-width: 12px; min-height: 16px; }}
+QPushButton[segment="true"][compact="true"] {{ padding: 2px 8px; min-height: 14px; }}
 QLabel#Peek {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
     padding: 8px 10px; }}
 QLabel#Section {{ color: {p.text_muted}; font-size: {FONT_SIZE_SMALL}px; font-weight: 600; padding-top: 6px; }}
@@ -178,6 +179,7 @@ QLabel#StirState[tone="missing"] {{ color: {p.danger}; }}
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
     background: {p.raised}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px; padding: 5px 8px;
     selection-background-color: {p.accent}; selection-color: {p.on_accent}; }}
+QSpinBox[compact="true"] {{ padding: 2px 6px; }}
 QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {{ border-color: {p.text_muted}; }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{ border-color: {p.accent}; }}
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {{ color: {p.text_muted}; background: {p.surface}; border-color: {p.border_subtle}; }}

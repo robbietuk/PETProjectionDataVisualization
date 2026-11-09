@@ -9,7 +9,7 @@ pytest.importorskip("PySide6")
 pytest.importorskip("pyqtgraph")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6 import QtWidgets  # noqa: E402
+from PySide6 import QtCore, QtWidgets  # noqa: E402
 
 from fakes import non_tof_source, small_demo  # noqa: E402
 from pet_projection_data_visualization.view.pane import ProjectionDataPane  # noqa: E402
@@ -33,7 +33,10 @@ def win(app):
     app.processEvents()
     yield w
     w._timer.stop()
+    w.rail.open(None)
     w.close()
+    w.deleteLater()                            # gone now, not at the next module's processEvents()
+    QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.Type.DeferredDelete)
 
 
 def _global_rect(widget):
@@ -98,6 +101,22 @@ def test_the_image_is_the_largest_part_and_the_toolbar_is_under_it(win):
     assert bar_y >= img_y + img_h                        # the toolbar is under the image
     assert img_w > max(rail_w, col_w) and img_w * img_h > bar_w * bar_h
     assert img_w * img_h > 0.3 * win.centralWidget().width() * win.centralWidget().height()
+
+
+def test_the_toolbar_is_no_taller_than_its_rows(win):
+    """Three stacked rows (segment, fixed axis, TOF) must not eat the image (Windows' taller widgets did):
+    the toolbar is its rows plus slim padding, and the TOF row with its Bin | Sum | Mean | Max is no
+    taller than a row without it."""
+    from pet_projection_data_visualization.view.window import TOOLBAR_PAD, TOOLBAR_ROW_SPACING
+    rows = [c for c in win.dim_controls.values() if c.isVisible()]
+    assert len(rows) == 3 and win.dim_controls["tof"] in rows
+    rows_height = sum(c.height() for c in rows) + TOOLBAR_ROW_SPACING * (len(rows) - 1)
+    frame = 2 * win.toolbar.frameWidth()
+    assert win.toolbar.height() <= rows_height + 2 * TOOLBAR_PAD + frame + 2
+    plain = win.dim_controls["segment"].height()
+    assert win.dim_controls["tof"].height() <= plain + 2
+    font_height = win.dim_controls["segment"].fontMetrics().height()
+    assert plain <= font_height + 14                    # compact: the spin box and buttons have little padding
 
 
 def test_the_tof_plot_is_in_the_plot_column_right_of_the_image(win):
