@@ -79,3 +79,12 @@ TOF_MODE_OPTIONS = ChoiceOptions.from_enum(
 LEVEL_MODE_OPTIONS = ChoiceOptions.from_enum(
     LevelMode, {LevelMode.ADAPTIVE: "Adaptive", LevelMode.LOCKED: "Locked"})
 COLORMAP_OPTIONS = ChoiceOptions.from_values(COLORMAPS)
+
+# (keys, what they do), listed in the Profiles and settings flyout
+KEYBOARD_SHORTCUTS: Final = (
+    ("Space", "Play or pause"),
+    ("Left / Right", "Step the fixed axis (axial, view or tangential)"),
+    ("Page Up / Page Down", "Next or previous segment"),
+    ("L", "Lock or unlock the colour levels"),
+    ("Esc", "Close the open flyout"),
+)

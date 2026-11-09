@@ -15,14 +15,19 @@ import os
 from typing import Callable, Concatenate, ParamSpec, TypeVar
 
 from ..model import ProjDataset, ProjDataSource
+from . import formatting
 from .observable import Observed, ObservableObject
 from .pane_viewmodel import ProjectionPaneViewModel
 
 DEFAULT_STATUS = "Open a file, or use File > Demo data"
 DEFAULT_TITLE = "STIR projection data viewer"
+NO_STIR_PROBE = "STIR status not checked in this configuration"
+MAX_RECENT_FILES = 8
 
 # what ``load`` accepts: a path, a ``stir.ProjData`` or a ``ProjDataSource``; only the factory looks inside
 SourceFactory = Callable[[object], ProjDataSource]
+# () -> (STIR can be used, one line saying where it is or why not); the composition root supplies it
+StirProbe = Callable[[], tuple[bool, str]]
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -56,12 +61,20 @@ class ViewerViewModel(ObservableObject):
     source_path: Observed[str] = Observed("")        # path of the loaded file, "" for in-memory or demo data
     status: Observed[str] = Observed(DEFAULT_STATUS)
     error: Observed[str | None] = Observed(None)     # last error message; re-notified on every failure
+    data_summary: Observed[str] = Observed(formatting.data_summary(None))   # where the data comes from, its format
+    recent_files: Observed[tuple[str, ...]] = Observed(())   # files loaded in this session, most recent first
+    stir_available: Observed[bool] = Observed(False)
+    stir_status: Observed[str] = Observed(NO_STIR_PROBE)
 
-    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None) -> None:
+    def __init__(self, source_factory: SourceFactory, demo_factory: Callable[[], ProjDataSource] | None = None,
+                 stir_probe: StirProbe | None = None) -> None:
+        """``stir_probe`` reports whether STIR can be used and where it is (see ``refresh_stir_status``)."""
         super().__init__()
         self._factory = source_factory
         self._demo_factory = demo_factory
+        self._stir_probe = stir_probe
         self.pane = ProjectionPaneViewModel(on_status=self._set_status, on_error=self._report_error)
+        self.refresh_stir_status()
 
     # ---- commands --------------------------------------------------------------------
     @_command
@@ -79,8 +92,22 @@ class ViewerViewModel(ObservableObject):
         self.window_title = f"{DEFAULT_TITLE} - {dataset.info.name}"
         self.source_label = dataset.info.name
         self.source_path = os.fspath(obj) if isinstance(obj, (str, os.PathLike)) else ""
+        self.data_summary = formatting.data_summary(dataset.info, self.source_path)
+        if self.source_path:
+            self._remember(self.source_path)
         self.status = f"Loaded {dataset.info.name}" + ("  (colour levels unlocked)" if was_locked else "")
         return True
+
+    @_command
+    def refresh_stir_status(self) -> None:
+        """Ask the injected probe whether STIR can be used. Without a probe the status says so."""
+        if self._stir_probe is None:
+            self.stir_available, self.stir_status = False, NO_STIR_PROBE
+            return
+        try:
+            self.stir_available, self.stir_status = self._stir_probe()
+        except Exception as exc:  # noqa: BLE001 - a status line, never fatal
+            self.stir_available, self.stir_status = False, f"Could not check for STIR: {exc}"
 
     @_command
     def load_path(self, text: str) -> bool:
@@ -111,6 +138,13 @@ class ViewerViewModel(ObservableObject):
         self._report_error(message)
 
     # ---- internals ---------------------------------------------------------------------
+    def _remember(self, path: str) -> None:
+        """Put ``path`` first in ``recent_files``; the same file (also typed differently) is listed once."""
+        def same(p: str) -> str:
+            return os.path.normcase(os.path.abspath(p))
+        key = same(path)
+        self.recent_files = ((path,) + tuple(p for p in self.recent_files if same(p) != key))[:MAX_RECENT_FILES]
+
     def _set_status(self, message: str) -> None:
         self.status = message
 

@@ -11,6 +11,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from ._refcount_guard import protect_singletons
 from .sources import make_demo_source
 from .sources.loader import make_source
+from .stir_interface import probe_stir
 from .view._compat import override
 from .view.styling import apply_theme
 from .view.theme import DEFAULT_PALETTE, PALETTES
@@ -21,7 +22,8 @@ from .viewmodel import ViewerViewModel
 def build(stir_path: str | None = None, theme: str = DEFAULT_PALETTE.name) -> tuple[ViewerViewModel, ViewerWindow]:
     """Create the view model (with the real loader and demo data) and its window."""
     protect_singletons()   # also here for callers that build their own window (idempotent)
-    vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source)
+    vm = ViewerViewModel(source_factory=lambda obj: make_source(obj, stir_path), demo_factory=make_demo_source,
+                         stir_probe=lambda: probe_stir(stir_path))
     return vm, ViewerWindow(vm, PALETTES[theme])
 
 

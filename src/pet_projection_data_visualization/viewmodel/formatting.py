@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 from ..model import ProjDataInfo, Selection, SliceImage, SliceMode, SliceStats, TofMode
 
@@ -20,6 +21,39 @@ def describe_dataset(info: ProjDataInfo) -> str:
         f"Total bins:  {info.total_bins:,}  (~{info.total_bins * 4 / 1e6:.1f} MB as float32)",
     ]
     return "\n".join(lines)
+
+
+_FORMAT_BY_SUFFIX = {".hs": "Interfile (read with STIR)", ".npy": "numpy .npy", ".npz": "numpy .npz"}
+
+
+def describe_format(info: ProjDataInfo, path: str = "") -> str:
+    """The data format: what the source says, else what the file name suggests, else what it is."""
+    if info.extra.get("format"):
+        return info.extra["format"]
+    suffix = os.path.splitext(path)[1].lower()
+    if suffix in _FORMAT_BY_SUFFIX:
+        return _FORMAT_BY_SUFFIX[suffix]
+    return f"{suffix[1:]} file" if suffix else ("file" if path else "in-memory data")
+
+
+def data_summary(info: ProjDataInfo | None, path: str = "") -> str:
+    """The Data rail button's hover peek: where the data comes from and its format."""
+    if info is None:
+        return "No data loaded"
+    return f"{path or info.name}\nFormat: {describe_format(info, path)}"
+
+
+def dataset_summary(info: ProjDataInfo) -> str:
+    """The Data set rail button's hover peek: scanner, dimensions and whether it has TOF."""
+    axial = sorted({info.num_axial(s) for s in info.segments})
+    axial_text = str(axial[0]) if len(axial) == 1 else f"{axial[0]}-{axial[-1]}"
+    tof = f"yes, {info.num_tof_bins} bins" if info.is_tof else "no"
+    return "\n".join([
+        f"Scanner: {info.extra.get('scanner') or 'not recorded'}",
+        f"Segments {info.num_segments}, views {info.num_views}, axial {axial_text}, "
+        f"tangential {info.num_tangential}",
+        f"TOF: {tof}",
+    ])
 
 
 def describe_slice(image: SliceImage, stats: SliceStats) -> str:

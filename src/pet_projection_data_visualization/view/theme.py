@@ -149,6 +149,13 @@ QPushButton[segment="true"]:hover {{ color: {p.text}; }}
 QPushButton[segment="true"]:checked {{ background: {p.accent}; color: {p.on_accent}; font-weight: 600; }}
 QPushButton[segment="true"]:disabled {{ color: {p.border}; }}
 QPushButton[rail="true"] {{ padding: 10px 2px; font-size: 12px; }}
+QPushButton[align="left"] {{ text-align: left; padding: 4px 8px; }}
+QLabel#Peek {{ background: {p.raised}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
+    padding: 8px 10px; }}
+QLabel#Section {{ color: {p.text_muted}; font-size: 11px; font-weight: 600; padding-top: 6px; }}
+QLabel#Key {{ font-family: {MONO_FAMILY}; font-size: 12px; }}
+QLabel#StirState {{ font-weight: 600; }}
+QLabel#StirState[tone="missing"] {{ color: {p.danger}; }}
 QFrame#Segmented {{ background: {p.raised}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL + 2}px; }}
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{

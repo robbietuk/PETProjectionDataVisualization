@@ -130,6 +130,8 @@ class ProjectionPaneViewModel(ObservableObject):
     image: Observed[DisplayImage | None] = Observed(None)
     levels: Observed[tuple[float, float] | None] = Observed(None)   # (lo, hi)
     info_text: Observed[str] = Observed("")
+    summary: Observed[str] = Observed("")            # scanner, dimensions and TOF yes/no, in a few lines
+    show_tof_profile: Observed[bool] = Observed(True)   # the user's choice; shown only for TOF data
     pixel_text: Observed[str] = Observed("")
     tof_profile: Observed[TofProfile | None] = Observed(None)
     metrics: Observed[tuple[tuple[str, str], ...]] = Observed(())   # (label, value) for the current slice
@@ -174,6 +176,7 @@ class ProjectionPaneViewModel(ObservableObject):
         self.level_mode = LevelMode.ADAPTIVE
         self.playing = False
         self.title = dataset.info.name
+        self.summary = formatting.dataset_summary(dataset.info)
         self.tof_available = dataset.info.is_tof
         self.tof_range = (dataset.info.min_tof, dataset.info.max_tof) if dataset.info.is_tof else None
         self.tof_profile = None
@@ -219,6 +222,11 @@ class ProjectionPaneViewModel(ObservableObject):
     @_command
     def toggle_play(self) -> None:
         self.set_playing(not self.playing)
+
+    @_command
+    def set_show_tof_profile(self, shown: bool) -> None:
+        """Show or hide the TOF profile plot (it is never shown for non-TOF data)."""
+        self.show_tof_profile = bool(shown)
 
     @_command
     def set_fps(self, fps: int) -> None:

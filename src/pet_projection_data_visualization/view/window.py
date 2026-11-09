@@ -13,18 +13,20 @@ logic, no data access, no formatting; colours come from the active ``Palette``.
 from __future__ import annotations
 
 import contextlib
+import os
 from typing import Callable, Generator, ParamSpec, TypeVar, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..viewmodel import (COLORMAP_OPTIONS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS,
-                         BindingRegistry, ViewerViewModel)
+from ..viewmodel import (COLORMAP_OPTIONS, KEYBOARD_SHORTCUTS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS,
+                         TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, ViewerViewModel)
 from . import components as ui
 from .pane import ProjectionDataPane
-from .rail import IconRail
+from .rail import IconRail, is_rail_button
 from .styling import apply_theme
-from .theme import DARK, LIGHT, Palette
+from .theme import DARK, LIGHT, PALETTES, Palette
 
+THEME_OPTIONS = ChoiceOptions.from_values(tuple(PALETTES), tuple(name.capitalize() for name in PALETTES))
 LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
                   "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
                   "log display. Typing a level or dragging the histogram locks at the new values.")
@@ -38,11 +40,18 @@ def _uses_key(widget: QtWidgets.QWidget, key: QtCore.Qt.Key) -> bool:
     """Does ``widget`` (the focused one) have its own meaning for ``key``?"""
     Key = QtCore.Qt.Key
     text_entry = (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox, QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)
-    if key == Key.Key_Space:
-        return isinstance(widget, text_entry)
+    if key == Key.Key_Space:                # a focused rail button opens its flyout, like any push button
+        return isinstance(widget, text_entry) or is_rail_button(widget)
     if key == Key.Key_L:                   # a letter: typed into text fields, type-ahead in combo boxes
         return isinstance(widget, (QtWidgets.QComboBox,) + text_entry)
     return isinstance(widget, (QtWidgets.QAbstractSlider, QtWidgets.QComboBox) + text_entry)
+
+
+def _section(title: str) -> QtWidgets.QLabel:
+    """A small heading inside a flyout."""
+    label = QtWidgets.QLabel(title)
+    label.setObjectName("Section")
+    return label
 
 
 @contextlib.contextmanager
@@ -119,15 +128,32 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _build_rail(self) -> IconRail:
         self.rail = IconRail()
         self._build_data_flyout(self.rail.add_flyout(
-            "data", "Data", "Data", "Data: open a file or the demo data"))
+            "data", "Data", "Data", "Data: open a file, a recent file or the demo data; STIR status",
+            peek=lambda: self.vm.data_summary))
         self._build_info_flyout(self.rail.add_flyout(
-            "info", "Info", "Data set", "Data set: scanner, dimensions and metadata"))
+            "info", "Info", "Data set", "Data set: scanner, dimensions and all metadata",
+            peek=lambda: self.vm.pane.summary if self.vm.loaded else "No data loaded"))
         self.display_card = self.rail.add_flyout(
-            "display", "Display", "Display", "Display: colour map, colour levels and log display")
+            "display", "Display", "Display", "Display: colour map, log display and theme",
+            peek=self._display_peek)
         self._build_display_flyout(self.display_card)
         self._build_settings_flyout(self.rail.add_flyout(
-            "settings", "Settings", "Profiles and settings", "Profiles and settings: animation speed"))
+            "settings", "Settings", "Profiles and settings",
+            "Profiles and settings: profile plots, animation speed and keyboard shortcuts",
+            peek=self._settings_peek))
+        # STIR may have been installed meanwhile: check again whenever the Data flyout opens (cheap: no import)
+        self.rail.flyoutChanged.connect(self._on_flyout_changed)
         return self.rail
+
+    def _display_peek(self) -> str:
+        pane = self.vm.pane
+        return (f"Colour map: {pane.colormap}\nLog display: {'on' if pane.log_display else 'off'}\n"
+                f"Theme: {THEME_OPTIONS.label_of(self.palette_tokens.name)}")
+
+    def _settings_peek(self) -> str:
+        pane = self.vm.pane
+        return (f"TOF profile: {'shown' if pane.show_tof_profile else 'hidden'}\n"
+                f"Animation speed: {pane.fps} fps")
 
     def _build_data_flyout(self, card: ui.Card) -> None:
         self.loaded_label = QtWidgets.QLabel("")          # name of the loaded data set
@@ -150,6 +176,22 @@ class ViewerWindow(QtWidgets.QMainWindow):
         card.body.addWidget(self.path_edit)
         card.body.addLayout(buttons)
         card.body.addWidget(demo)
+        card.body.addWidget(_section("Recent files"))
+        self.recent_list = QtWidgets.QVBoxLayout()           # one button per file, rebuilt when the list changes
+        self.recent_list.setSpacing(2)
+        self.recent_buttons: list[QtWidgets.QPushButton] = []
+        self.no_recent_label = QtWidgets.QLabel("No files opened yet")
+        self.no_recent_label.setObjectName("Muted")
+        self.recent_list.addWidget(self.no_recent_label)
+        card.body.addLayout(self.recent_list)
+        card.body.addWidget(_section("STIR"))
+        self.stir_state = QtWidgets.QLabel("")
+        self.stir_state.setObjectName("StirState")
+        card.body.addWidget(self.stir_state)
+        self.stir_label = QtWidgets.QLabel("")
+        self.stir_label.setWordWrap(True)
+        self.stir_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        card.body.addWidget(self.stir_label)
 
     def _build_info_flyout(self, card: ui.Card) -> None:
         self.info_view = QtWidgets.QPlainTextEdit()
@@ -171,7 +213,18 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.global_button.setToolTip("Lock Min/Max at the range of the whole data set in the current TOF mode "
                                       "(reads every segment once).")
         self.global_button.clicked.connect(lambda: self._run(self.vm.pane.lock_global_range))
+        self.log_switch = QtWidgets.QCheckBox("log(1 + x) display")
+        self.log_switch.toggled.connect(self._slot(lambda: self.vm.pane.set_log_display))
+        self.theme_control = ui.SegmentedControl(THEME_OPTIONS)
+        self.theme_control.setAccessibleName("Theme")
+        self.theme_control.set_choice(self.palette_tokens.name)
+        self.theme_control.choiceChanged.connect(self._on_theme_chosen)
         display.body.addWidget(ui.LabeledRow("Colour map", self.cmap_control))
+        display.body.addWidget(self.log_switch)
+        display.body.addWidget(ui.LabeledRow("Theme", self.theme_control))
+        # the colour levels move beside the colour bar in a later step of #36; until then they live here
+        self.levels_section = _section("Colour levels")
+        display.body.addWidget(self.levels_section)
         display.body.addWidget(self.level_control)          # full width, like the other mode controls
         display.body.addWidget(self.global_button)
         self.level_edits: dict[str, ui.NumberEdit] = {}
@@ -181,17 +234,36 @@ class ViewerWindow(QtWidgets.QMainWindow):
             edit.valueEdited.connect(self._level_bound_slot(key))
             self.level_edits[key] = edit
             display.body.addWidget(ui.LabeledRow(label, edit))
-        self.log_switch = QtWidgets.QCheckBox("log(1 + x) display")
-        self.log_switch.toggled.connect(self._slot(lambda: self.vm.pane.set_log_display))
-        display.body.addWidget(self.log_switch)
 
     def _build_settings_flyout(self, card: ui.Card) -> None:
+        card.body.addWidget(_section("Profile plots"))
+        self.tof_profile_switch = QtWidgets.QCheckBox("TOF profile")
+        self.tof_profile_switch.setToolTip("Show the TOF profile of the LOR under the cursor (TOF data only)")
+        self.tof_profile_switch.toggled.connect(self._slot(lambda: self.vm.pane.set_show_tof_profile))
+        card.body.addWidget(self.tof_profile_switch)
+        card.body.addWidget(_section("Animation"))
         self.fps_spin = QtWidgets.QSpinBox()
         self.fps_spin.setRange(1, 30)
         self.fps_spin.setSuffix(" fps")
         self.fps_spin.setAccessibleName("Animation speed")
         self.fps_spin.valueChanged.connect(self._slot(lambda: self.vm.pane.set_fps))
-        card.body.addWidget(ui.LabeledRow("Animation speed", self.fps_spin))
+        card.body.addWidget(ui.LabeledRow("Speed", self.fps_spin))
+        card.body.addWidget(_section("Keyboard shortcuts"))
+        self.shortcut_list = QtWidgets.QWidget()
+        grid = QtWidgets.QGridLayout(self.shortcut_list)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(4)
+        for i, (keys, action) in enumerate(KEYBOARD_SHORTCUTS):
+            key_label = QtWidgets.QLabel(keys)
+            key_label.setObjectName("Key")
+            action_label = QtWidgets.QLabel(action)
+            action_label.setObjectName("Muted")
+            action_label.setWordWrap(True)
+            grid.addWidget(key_label, i, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+            grid.addWidget(action_label, i, 1)
+        grid.setColumnStretch(1, 1)
+        card.body.addWidget(self.shortcut_list)
 
     def _build_viewer_page(self) -> QtWidgets.QWidget:
         page = QtWidgets.QWidget()
@@ -297,6 +369,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
         # the window exists, so the GUI application does too
         apply_theme(cast(QtWidgets.QApplication, QtWidgets.QApplication.instance()), palette)
         self.pane.set_palette(palette)
+        # the View menu and the Display flyout both choose the theme; keep them in step
+        was = self.act_light.blockSignals(True)
+        self.act_light.setChecked(palette.name == LIGHT.name)
+        self.act_light.blockSignals(was)
+        self.theme_control.set_choice(palette.name)
 
     # ------------------------------------------------------------------ user input -> commands
     def _run(self, command: Callable[_P, object], *args: _P.args, **kwargs: _P.kwargs) -> None:
@@ -314,6 +391,13 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     def _on_light_toggled(self, on: bool) -> None:
         self.set_palette(LIGHT if on else DARK)
+
+    def _on_theme_chosen(self, name: str) -> None:
+        self.set_palette(PALETTES[name])
+
+    def _on_flyout_changed(self, key: str | None) -> None:
+        if key == "data":
+            self.vm.refresh_stir_status()
 
     def _open_file(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -350,10 +434,17 @@ class ViewerWindow(QtWidgets.QMainWindow):
         b("loaded", lambda: self.act_save.setEnabled(self.vm.loaded))
         b("loaded", self._enable_controls)
         b("error", lambda: self.banner.show_message(self.vm.error))
+        b("recent_files", self._paint_recent_files)
+        b("stir_status", lambda: self.stir_label.setText(self.vm.stir_status))
+        b("stir_available", self._paint_stir_available)
+        b(("data_summary", "loaded"), self.rail.refresh_peek)     # a peek on screen follows the data
 
         pane = self.vm.pane
         p = self.pane_bindings.bind
         p("tof_available", lambda: self.tof_box.setVisible(pane.tof_available))
+        p("tof_available", lambda: self.tof_profile_switch.setEnabled(pane.tof_available))
+        p("show_tof_profile", lambda: ui.silently(
+            self.tof_profile_switch, lambda: self.tof_profile_switch.setChecked(pane.show_tof_profile)))
         p("dimensions", self._paint_dimensions)
         p("slice_mode", lambda: self.mode_control.set_choice(pane.slice_mode))
         p("tof_mode", lambda: self.tof_mode_control.set_choice(pane.tof_mode))
@@ -365,6 +456,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         p("log_display", lambda: ui.silently(self.log_switch, lambda: self.log_switch.setChecked(pane.log_display)))
         p("levels", self._paint_level_edits)
         p("info_text", lambda: self.info_view.setPlainText(pane.info_text))
+        p(("summary", "colormap", "log_display", "show_tof_profile", "fps"), self.rail.refresh_peek)
 
     def _show_page(self) -> None:
         self.pages.setCurrentIndex(self.PAGE_VIEWER if self.vm.loaded else self.PAGE_EMPTY)
@@ -376,6 +468,29 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _paint_dimensions(self) -> None:
         for state in self.vm.pane.dimensions:
             self.dim_controls[state.name].show_state(state.label, state.lo, state.hi, state.value, state.enabled)
+
+    def _paint_stir_available(self) -> None:
+        available = self.vm.stir_available
+        self.stir_state.setText("Available" if available else "Not available")
+        self.stir_state.setProperty("tone", "ok" if available else "missing")
+        self.stir_state.style().unpolish(self.stir_state)         # re-read the stylesheet for the new tone
+        self.stir_state.style().polish(self.stir_state)
+
+    def _paint_recent_files(self) -> None:
+        for button in self.recent_buttons:
+            self.recent_list.removeWidget(button)
+            button.deleteLater()
+        self.recent_buttons = []
+        for path in self.vm.recent_files:
+            button = QtWidgets.QPushButton(os.path.basename(path) or path)
+            button.setProperty("variant", "ghost")
+            button.setProperty("align", "left")
+            button.setToolTip(path)
+            button.setAccessibleName(f"Open recent file {path}")
+            button.clicked.connect(lambda _checked=False, p=path: self._run(self.vm.load, p))
+            self.recent_list.addWidget(button)
+            self.recent_buttons.append(button)
+        self.no_recent_label.setVisible(not self.recent_buttons)
 
     def _paint_fps(self) -> None:
         ui.silently(self.fps_spin, lambda: self.fps_spin.setValue(self.vm.pane.fps))

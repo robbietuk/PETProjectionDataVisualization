@@ -172,7 +172,7 @@ class ProjectionDataPane(QtWidgets.QWidget):
     def _declare_bindings(self) -> None:
         b = self.bindings.bind
         b("title", lambda: self.title_label.setText(self.vm.title))
-        b("tof_available", self._paint_tof_available)
+        b(("tof_available", "show_tof_profile"), self._paint_tof_available)
         b("colormap", lambda: self.hist.gradient.setColorMap(colormap(self.vm.colormap)))
         b("image", self._draw_image)
         b(("levels", "level_mode"), self._paint_levels)       # after the image, as before
@@ -184,8 +184,9 @@ class ProjectionDataPane(QtWidgets.QWidget):
         b("context", lambda: self.chips.set_chips(self.vm.context))
 
     def _paint_tof_available(self) -> None:
-        self.tof_dock.setVisible(self.vm.tof_available)
-        self.plot_column.setVisible(self.vm.tof_available)    # no profile to show: the image takes the room
+        shown = self.vm.tof_available and self.vm.show_tof_profile
+        self.tof_dock.setVisible(shown)
+        self.plot_column.setVisible(shown)    # no profile to show: the image takes the room
 
     def _paint_levels(self) -> None:
         """Levels into the colour bar. While locked its axis is pinned too, so it stays exactly the same
