@@ -21,7 +21,25 @@ PySide6 + pyqtgraph (no matplotlib), Python >= 3.11. A development tool: run it 
 no compiled executable.
 
 This started as a rewrite of STIR's `examples/python/projdata_visualisation` (PyQt5 + matplotlib), which is
-still part of STIR and unchanged. See [PLAN.md](PLAN.md) for design decisions and the roadmap.
+still part of STIR and unchanged. See [docs/PLAN.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/PLAN.md) for design decisions and the roadmap.
+
+## Getting set up
+
+New to Python or conda? The [step-by-step guide](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/INSTALL.md)
+covers Windows, macOS and Linux: installing Python 3.11 or newer, Miniforge and the viewer, checking it works,
+and common problems (such as macOS's built-in `/usr/bin/python3`, which is 3.9 and too old). In short:
+
+* **Desktop app, no Python needed:** download the app for your system from
+  [GitHub Releases](https://github.com/robbietuk/PETProjectionDataVisualization/releases). STIR is included.
+* **conda (recommended, includes STIR):** install [Miniforge](https://github.com/conda-forge/miniforge), then
+  `conda create -n petpdv -c conda-forge petprojectiondatavisualization` and `conda activate petpdv`.
+* **pip (no STIR):** in a virtual environment with Python 3.11 or newer,
+  `pip install PETProjectionDataVisualization`. Numpy files and the demo work; `.hs` files need STIR from
+  elsewhere.
+
+Then run `pet-projection-data-visualization --demo`. Until the PyPI and conda-forge packages are published,
+the guide shows how to install from GitHub instead. Developer set-up (editable install, pre-commit, tests) is in
+[CONTRIBUTING.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/CONTRIBUTING.md).
 
 ## Versions and changes
 
@@ -32,7 +50,8 @@ and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests and releasing.
 ## Install
 
 STIR's Python module is a compiled extension and is **not** a pip dependency; the viewer finds it
-at run time. Pick one:
+at run time. To install from a clone of this repository (macOS/Linux shell; for Windows and for installing
+Python or conda first, see [Getting set up](#getting-set-up)), pick one:
 
 ```sh
 # A) conda (recommended): STIR, Qt and the viewer in one environment
@@ -174,6 +193,9 @@ np.savez("data.npz", segment_0=seg0, **{"segment_-1": seg_m1, "segment_1": seg_p
 
 ## Using the window
 
+How each slice is laid out on screen (which axis is up and which way it runs) is described in
+[docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md).
+
 In the window: the *Slice* box chooses sinogram / viewgram / tangential slice; *Time of flight*
 chooses a single bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value, the
 bin indices, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor.
@@ -248,11 +270,12 @@ pip install -e .[test] && pytest
 | `tests/viewmodel` | every command, notification batching, levels, hover/profile, failure paths, seeded random-command invariants | numpy |
 | `tests/view` | window binding with stubbed Qt (always runs) and with real PySide6 offscreen (if installed) | Qt optional |
 | `tests/tooling` | the project itself: release checks and tag rules, changelog format, licence and SPDX headers, the CI helper scripts (`scripts/`) | numpy (Qt for the smoke test) |
-| `tests/stir_interface/test_real_stir_integration.py` | real bindings: contract, axis order vs STIR's own accessors, full stack on a real file | `stir` + a `.hs` (`STIR_TEST_PROJDATA`) |
+| `tests/stir_interface/test_real_stir_integration.py` | real bindings on a non-TOF and a TOF file: contract, axis order vs STIR's own accessors, TOF bins and Sum, full stack | `stir`; a non-TOF `.hs` (`STIR_TEST_PROJDATA`); a TOF `.hs` (`STIR_TEST_PROJDATA_TOF`, else written by `scripts/make_tof_projdata.py`) |
 
 ## Differences from the old PyQt5/matplotlib tool
 
-Kept: sinogram and viewgram modes (same axes and orientation), segment/axial/view/TOF controls, file
+Kept: sinogram and viewgram modes (same axes, and the orientation is meant to be the same: see
+[docs/ORIENTATION.md](https://github.com/robbietuk/PETProjectionDataVisualization/blob/main/docs/ORIENTATION.md), not yet compared by eye), segment/axial/view/TOF controls, file
 browse + typed path + Load, `launch(...)` with a path, a `stir.ProjData` or no argument (`launch_GUI` alias),
 `-f FILE` on the command line, max-level control (now numeric Min/Max level boxes plus a draggable histogram).
 
@@ -273,7 +296,7 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 * Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least
   recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
   not whole segments.
-* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.13), and against real STIR from conda-forge.
+* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.15), and against real STIR from conda-forge (Python 3.11 to 3.14).
 * PySide6 6.12.0 on Linux gives back references to `None`, `True` and `False` that it never took (about 64 per
   repaint of the colour bar, measured on Python 3.11; 6.8.3 to 6.11.3, and 6.12.0 on macOS and Windows, are fine).
   From Python 3.12 those objects are immortal and nothing happens, but on Python 3.11 the viewer aborted after a few

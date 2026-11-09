@@ -8,12 +8,12 @@ pytest.importorskip("PySide6")
 pytest.importorskip("pyqtgraph")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6 import QtWidgets  # noqa: E402
+from PySide6 import QtCore, QtWidgets  # noqa: E402
 
 from pet_projection_data_visualization.model import SliceMode  # noqa: E402
 from pet_projection_data_visualization.view import components as ui  # noqa: E402
 from pet_projection_data_visualization.view.styling import apply_theme  # noqa: E402
-from pet_projection_data_visualization.view.theme import DARK, LIGHT  # noqa: E402
+from pet_projection_data_visualization.view.theme import CHIP_HEIGHT, DARK, LIGHT  # noqa: E402
 from pet_projection_data_visualization.viewmodel import COLORMAP_OPTIONS, SLICE_MODE_OPTIONS  # noqa: E402
 
 
@@ -124,3 +124,126 @@ def test_apply_theme_sets_disabled_text_colour(app):
     apply_theme(app, DARK)
     c = app.palette().color(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.WindowText)
     assert c.name() == DARK.text_muted
+
+
+def _settle(app, widget):
+    widget.show()
+    for _ in range(3):
+        app.processEvents()
+
+
+@pytest.mark.parametrize("text", ["axial 11", "Sinogram segment -12, axial 140, TOF bin 33 of 33 (Sum)"])
+def test_chip_is_never_smaller_than_its_text(app, text):
+    apply_theme(app, DARK)
+    chip = ui.Chip(text)
+    _settle(app, chip)
+    metrics = chip.label.fontMetrics()
+    assert chip.sizeHint().height() >= max(CHIP_HEIGHT, metrics.height())
+    assert chip.height() >= CHIP_HEIGHT
+    assert chip.label.width() >= metrics.horizontalAdvance(text)
+    assert chip.label.height() >= metrics.height()
+    chip.close()
+
+
+def test_chip_row_keeps_its_size_beside_a_long_title(app):
+    apply_theme(app, DARK)
+    header = QtWidgets.QWidget()
+    row = QtWidgets.QHBoxLayout(header)
+    title = ui.ElidedLabel("a very long data set title " * 8)
+    chips = ui.ChipRow()
+    chips.set_chips(["Sinogram", "segment 0", "axial 11", "TOF bin 4"])
+    row.addWidget(title, 1)
+    row.addWidget(chips)
+    header.resize(500, 40)
+    _settle(app, header)
+    assert chips.width() >= chips.sizeHint().width()
+    for chip in chips._chips:
+        assert chip.label.width() >= chip.label.fontMetrics().horizontalAdvance(chip.label.text())
+    assert title.is_elided() and title.toolTip() == title.text()
+    header.close()
+
+
+def test_elided_label_keeps_its_text_and_only_elides_when_short_of_space(app):
+    label = ui.ElidedLabel("short")
+    label.resize(400, 30)
+    _settle(app, label)
+    assert not label.is_elided() and label.toolTip() == ""
+    label.setText("much longer text than fits in a few pixels")
+    label.resize(60, 30)
+    app.processEvents()
+    assert label.is_elided() and label.text() == "much longer text than fits in a few pixels"
+    assert label.minimumSizeHint().width() < label.sizeHint().width()
+    label.close()
+
+
+def test_metric_grid_reflows_into_balanced_rows_when_narrow(app):
+    apply_theme(app, DARK)
+    holder = QtWidgets.QWidget()                          # a top-level layout would pin the grid's minimum
+    grid = ui.MetricGrid(columns=6, parent=holder)
+    grid.set_metrics([(f"Name {i}", f"{i * 1000.5:.4g}") for i in range(6)])
+    grid.resize(1200, 80)
+    _settle(app, holder)
+    assert grid.column_count() == 6
+    narrow = grid.minimumSizeHint().width()
+    assert narrow < grid.sizeHint().width()
+    grid.resize(narrow, 200)
+    app.processEvents()
+    assert grid.column_count() == 3                       # 3 + 3, not 4 + 2
+    assert [p[0] for p in grid.pairs()] == [f"Name {i}" for i in range(6)]
+    grid.resize(1200, 80)
+    app.processEvents()
+    assert grid.column_count() == 6
+    holder.close()
+
+
+def test_side_panel_narrows_to_its_content_but_never_cuts_it_off(app):
+    apply_theme(app, DARK)
+    content = QtWidgets.QWidget()
+    col = QtWidgets.QVBoxLayout(content)
+    wide = QtWidgets.QWidget()
+    wide.setMinimumWidth(250)                            # explicit, so the test does not depend on the font
+    col.addWidget(wide)
+    panel = ui.SidePanel(content, max_width=500)
+    assert panel.horizontalScrollBarPolicy() == QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert panel.minimumWidth() == 0 and panel.maximumWidth() == 500     # not a fixed width
+    assert content.minimumSizeHint().width() < panel.minimumSizeHint().width() <= 500
+    assert panel.sizeHint().width() == 500
+    holder = QtWidgets.QWidget()
+    row = QtWidgets.QHBoxLayout(holder)
+    row.addWidget(panel)
+    row.addWidget(QtWidgets.QWidget(), 1)
+    holder.resize(100, 200)                              # narrower than the content
+    _settle(app, holder)
+    assert panel.width() >= panel.minimumSizeHint().width()
+    assert panel.viewport().width() >= content.minimumSizeHint().width()
+    assert panel.width() < 500                           # it narrowed
+    holder.close()
+
+
+def test_side_panel_widens_past_its_maximum_rather_than_cut_off_wider_content(app):
+    """With large fonts the content can need more than ``max_width``: the panel grows instead of clipping."""
+    apply_theme(app, DARK)
+    content = QtWidgets.QWidget()
+    col = QtWidgets.QVBoxLayout(content)
+    wide = QtWidgets.QWidget()
+    wide.setMinimumWidth(600)
+    col.addWidget(wide)
+    panel = ui.SidePanel(content, max_width=500)
+    holder = QtWidgets.QWidget()
+    row = QtWidgets.QHBoxLayout(holder)
+    row.addWidget(panel)
+    row.addWidget(QtWidgets.QWidget(), 1)
+    holder.resize(300, 200)
+    _settle(app, holder)
+    assert panel.minimumSizeHint().width() > 600
+    assert panel.maximumWidth() >= panel.minimumSizeHint().width()
+    assert panel.viewport().width() >= content.minimumSizeHint().width()       # nothing cut off on the right
+    wide.setMinimumWidth(200)                            # content narrows again (e.g. a smaller font)
+    for _ in range(3):
+        app.processEvents()
+    assert panel.maximumWidth() == 500                   # back to the configured maximum
+    holder.resize(1200, 200)
+    for _ in range(3):
+        app.processEvents()
+    assert panel.width() == 500
+    holder.close()

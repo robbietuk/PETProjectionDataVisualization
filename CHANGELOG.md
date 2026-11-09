@@ -49,7 +49,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
 - **Continuous integration** on GitHub Actions, modelled on STIR's own CI and run only on standard
   free runners:
   - pre-commit, with STIR's generic hooks plus ruff and a strict Pyrefly type check
-  - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.13
+  - pytest with offscreen Qt on Ubuntu, macOS and Windows, Python 3.11 to 3.15
   - a real-STIR job with conda-forge `stir` 6.4.0 and STIR's own test data
   - building the wheel and sdist and installing each into a clean environment on all three
     operating systems
@@ -62,6 +62,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   [Pyrefly](https://pyrefly.org) type check (`preset = "strict"` plus no explicit or inferred `Any`, apart from
   one alias for the untyped SWIG `stir` module), run as a pre-commit hook. The package ships a `py.typed`
   marker, so its types are visible to users' type checkers.
+- **Python 3.14 and 3.15.** Support for Python 3.14 and 3.15, tested in CI on Linux, macOS and Windows.
 - **Licence.** `LICENSE` (Apache-2.0) and `NOTICE`, shipped in the sdist and the wheel.
 - **STIR setup window.** Opening a `.hs` file when `stir` cannot be imported opens a window that
   says what is missing. It has a path box with Browse, a short how-to for conda and source builds,
@@ -91,9 +92,19 @@ These came out of two independent code reviews, before the split from STIR:
   make those three objects effectively immortal at start-up, as Python 3.12 does.
 - conda-forge `stir` on Windows looked for its config files in the wrong folder; CI sets
   `STIR_CONFIG_DIR` to the installed tables.
+- The TOF profile plot keeps its x-axis fixed on every TOF bin of the data set (negative bins
+  included). The mouse wheel and dragging zoom and pan only the counts axis, which cannot be panned
+  below 0 when all counts are ≥ 0. A double-click or the "A" button fits the counts again. The
+  plot's right-click menu is gone.
 
 ### Changed
 
+- Refreshed visual design: new light and dark palettes with one accent colour, flat cards with
+  subtle borders, a clear type scale and more generous spacing; the plots share the card colour.
+  Header chips are no longer clipped (a long data set title is shortened with "…" instead), and the
+  left panel narrows with the window down to the width its controls need instead of being fixed
+  (with large fonts it widens instead of cutting controls off). The statistics tiles wrap into two
+  rows in a narrow window, and the window never gets so narrow that the plot or its colour bar is cut off.
 - The three level modes *Auto*, *Fixed (global range)* and *Manual* became two, *Adaptive* and
   *Locked* (`LevelMode.ADAPTIVE` / `LevelMode.LOCKED`). The global range is now the
   *Lock to global range* action, and editing a level locks it. Toggling the log display no longer

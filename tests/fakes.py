@@ -2,6 +2,7 @@
 """Shared test doubles. None of these need Qt or STIR."""
 from __future__ import annotations
 
+import dataclasses
 import types
 
 import numpy as np
@@ -21,6 +22,14 @@ def non_tof_source(seed: int = 1) -> ArraySource:
     rng = np.random.default_rng(seed)
     return ArraySource({-1: rng.random((6, 3, 7)), 0: rng.random((6, 4, 7)), 1: rng.random((6, 3, 7))},
                        name="non-tof")
+
+
+def shifted_tof_source(min_tof: int, **kw) -> ArraySource:
+    """A small TOF demo whose TOF bins start at ``min_tof`` (STIR numbers them around zero)."""
+    src = small_demo(**kw)
+    n = src.info.num_tof_bins
+    src.info = dataclasses.replace(src.info, min_tof=min_tof, max_tof=min_tof + n - 1, name=f"tof from {min_tof}")
+    return src
 
 
 class CountingSource:

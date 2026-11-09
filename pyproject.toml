@@ -23,6 +23,8 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Topic :: Scientific/Engineering :: Visualization",
     "Environment :: X11 Applications :: Qt",
@@ -36,7 +38,7 @@ dependencies = [
     "pyqtgraph>=0.13.7",
 ]
 # NOTE: `stir` is deliberately NOT listed. It is a compiled SWIG extension that
-# is not on PyPI; it is discovered at run time (see PLAN.md, "Getting STIR").
+# is not on PyPI; it is discovered at run time (see docs/PLAN.md, "Getting STIR").
 
 [project.urls]
 Homepage = "https://github.com/robbietuk/PETProjectionDataVisualization"
@@ -77,7 +79,7 @@ include = [
     "/README.md",
     "/CHANGELOG.md",
     "/CONTRIBUTING.md",
-    "/PLAN.md",
+    "/docs/PLAN.md",
     "/environment.yml",
 ]
 
