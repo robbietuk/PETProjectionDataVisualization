@@ -52,10 +52,10 @@ def test_a_new_window_starts_where_the_last_one_closed(app, ini, monkeypatch):
     win.line_profile_switch.setChecked(False)
     win.set_palette(LIGHT)
     win.vm.recent_files = ("/data/x.hs",)
-    win.pane.splitter.setSizes([700, 420])
+    win.pane.plot_splitter.setSizes([300, 120])
     QtWidgets.QApplication.processEvents()
     geometry = bytes(win.saveGeometry())
-    panels = [bytes(splitter.saveState()) for splitter in (win.pane.splitter, win.pane.plot_column)]
+    panels = [bytes(win.pane.plot_splitter.saveState())]
     _dispose(win)                                       # saves
     settings = QtCore.QSettings(ini, QtCore.QSettings.Format.IniFormat)
     assert saved_theme(settings) == "light"
@@ -76,7 +76,7 @@ def test_a_new_window_starts_where_the_last_one_closed(app, ini, monkeypatch):
         assert restored == [geometry] + panels
         again.vm.load(small_demo())                     # ... once
         QtWidgets.QApplication.processEvents()
-        assert len(restored) == 3
+        assert len(restored) == 2
     finally:
         _dispose(again)
 

@@ -183,20 +183,22 @@ bins; while TOF is collapsed its play button is disabled, and its tooltip says w
 Beside the colour bar are the colour levels: Max at the top, Min at the bottom, *Adaptive | Locked* and
 *Global range* (see below). Hovering shows a readout in a corner of the image (segment, view, axial and
 tangential position, TOF bin and value); when the cursor comes close to it, it moves to another corner.
-The plot column on the right (drag its edge to resize it, or the edge between the plots) shows:
+The plot column on the right has a fixed width, so what it shows never resizes the image (drag the edge
+between the plots to share its height). It shows:
 
 * the **TOF profile** of the LOR under the cursor (TOF data only), with the current bin marked. While
   TOF is collapsed (Sum, Mean or Max) it is still shown, as context: "TOF bins at this LOR (the image
   shows their Sum: …)", with the collapsed value as a dashed reference line;
 * the **line profile**, *Row | Column | Free*. Row and Column read the exact bins of the image row or
   column through the cursor (their tooltips say which axis, e.g. "Along tangential"; Row, along
-  tangential, is the default). Free reads along a line drawn on the image: drag the line or its end
+  tangential, is the default); a dashed line on the image shows that row or column and follows the
+  cursor. Free reads along a line drawn on the image: drag the line or its end
   handles; the samples are interpolated and plotted against the distance in bins. The profile shows
   the image as displayed (one TOF bin, or Sum/Mean/Max); *per TOF bin* adds one faint curve per TOF bin
   along the same line.
 
 A click on the image freezes both profiles at that LOR (marked with a cross) while you change slices or
-image type; another click, or Esc, releases them. The viewer remembers the window and panel sizes, the
+image type; another click, or Esc, releases them. The viewer remembers the window size, the heights of the plots, the
 theme, the recent files and the display, profile and animation settings for the next session.
 
 Keys: Space plays or pauses the axis played last (TOF at first for TOF data, otherwise the fixed axis;

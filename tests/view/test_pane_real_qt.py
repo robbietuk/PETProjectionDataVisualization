@@ -184,6 +184,58 @@ def test_the_line_profile_plots_row_column_and_free(win):
     assert not pane.free_roi.isVisible()
 
 
+def _path_drawn(pane):
+    if not pane.line_path.isVisible():
+        return None
+    xs, ys = pane.line_path.getData()
+    return tuple(float(v) for v in (xs[0], ys[0], xs[1], ys[1]))
+
+
+def test_the_image_shows_the_line_the_profile_reads_and_it_follows_the_cursor(win):
+    pane, vm = win.pane, win.vm.pane
+    assert _path_drawn(pane) is None                     # no cursor yet
+    _cursor_at(win, 0.5, 0.4)
+    assert _path_drawn(pane) == pytest.approx(vm.line_profile.path)
+    x0, y0, x1, y1 = _path_drawn(pane)
+    assert y0 == y1 and (x0, x1) == pytest.approx((vm.image.x0, vm.image.x0 + vm.image.width))   # Row: across
+    _cursor_at(win, 0.5, 0.7)
+    assert _path_drawn(pane)[1] > y0                     # lower down, with the cursor
+    pane.line_mode_control._buttons[1].click()          # Column: from top to bottom
+    QtWidgets.QApplication.processEvents()
+    x0, y0, x1, y1 = _path_drawn(pane)
+    assert x0 == x1 and (y0, y1) == pytest.approx((vm.image.y0, vm.image.y0 + vm.image.height))
+    win.line_profile_switch.setChecked(False)           # no line profile: no line
+    assert _path_drawn(pane) is None
+    win.line_profile_switch.setChecked(True)
+    pane.line_mode_control._buttons[2].click()          # Free: the line with its handles, not a second one
+    QtWidgets.QApplication.processEvents()
+    assert _path_drawn(pane) is None and pane.free_roi.isVisible()
+
+
+def test_the_plot_column_keeps_its_width_whatever_it_shows(win, app):
+    from pet_projection_data_visualization.view.pane import PLOT_COLUMN_WIDTH
+    pane, vm = win.pane, win.vm.pane
+
+    def widths():
+        app.processEvents()
+        return pane.plot_column.width(), pane.glw.width()
+
+    before = widths()
+    assert before[0] == PLOT_COLUMN_WIDTH
+    _cursor_at(win, 0.1, 0.1)
+    pane.overlay_switch.setChecked(True)
+    pane.tof_dock.set_title("A very long title " * 10)          # long texts wrap; they do not widen the column
+    pane.line_title.setText("along tangential " * 20)
+    vm.set_log_display(True)
+    vm.click_at(vm.image.x0 + 1, vm.image.y0 + 1)
+    assert widths() == before
+    for line_mode in (1, 2, 0):
+        pane.line_mode_control._buttons[line_mode].click()
+        assert widths() == before
+    win.resize(1600, 840)                                        # a wider window widens the image only
+    assert widths()[0] == PLOT_COLUMN_WIDTH and widths()[1] > before[1]
+
+
 def test_the_per_tof_bin_overlay_adds_faint_curves(win):
     pane = win.pane
     _cursor_at(win, 0.5, 0.4)

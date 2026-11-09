@@ -7,7 +7,7 @@ pane (``ProjectionDataPane``: image, colour bar, readout, profile plots) in the 
 toolbar under it. The flyouts and the toolbar drive the pane's view model (``vm.pane``).
 
 With a ``QSettings`` (the application passes one; tests and scripts usually do not) the window remembers,
-from one session to the next, its size, the panel sizes, the theme, the recent files and the pane's
+from one session to the next, its size, the heights of the profile plots, the theme, the recent files and the pane's
 display, profile and animation choices (``ViewerViewModel.settings``). They are saved when it closes.
 
 Rules of this file: widgets send user input to view-model commands, and redraw from view-model
@@ -39,7 +39,7 @@ TOOLBAR_ROW_SPACING = 2     # between the toolbar's axis rows
 KEY_STATE = "viewer/state"              # ViewerViewModel.settings(), as JSON
 KEY_THEME = "window/theme"
 KEY_GEOMETRY = "window/geometry"
-KEY_SPLITTERS = ("window/image_and_plots", "window/plot_column")
+KEY_PLOT_COLUMN = "window/plot_column"   # the heights of the profile plots (the column's width is fixed)
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
@@ -78,7 +78,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.vm = vm
         self._settings = settings
-        self._pending_splitters: list[tuple[QtWidgets.QSplitter, QtCore.QByteArray]] = []
+        self._pending_plot_sizes: QtCore.QByteArray | None = None
         self.palette_tokens = palette
         self.resize(1320, 840)
         self._build_menu()
@@ -374,9 +374,6 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self._shortcut_commands[key]()
 
     # ------------------------------------------------------------------ settings between sessions
-    def _splitters(self) -> tuple[QtWidgets.QSplitter, QtWidgets.QSplitter]:
-        return self.pane.splitter, self.pane.plot_column
-
     def _restore_settings(self) -> None:
         settings = self._settings
         if settings is None:
@@ -392,15 +389,14 @@ class ViewerWindow(QtWidgets.QMainWindow):
         geometry = settings.value(KEY_GEOMETRY)
         if isinstance(geometry, QtCore.QByteArray):
             self.restoreGeometry(geometry)
-        # the panel sizes are restored once a data set is shown: before that the plot column is hidden
-        self._pending_splitters = [(splitter, sizes) for splitter, key in zip(self._splitters(), KEY_SPLITTERS)
-                                   if isinstance(sizes := settings.value(key), QtCore.QByteArray)]
+        # the plot heights are restored once a data set is shown: before that the plot column is hidden
+        sizes = settings.value(KEY_PLOT_COLUMN)
+        self._pending_plot_sizes = sizes if isinstance(sizes, QtCore.QByteArray) else None
 
     def _restore_panel_sizes(self) -> None:
-        pending = self._pending_splitters
-        self._pending_splitters = []
-        for splitter, sizes in pending:
-            splitter.restoreState(sizes)
+        sizes, self._pending_plot_sizes = self._pending_plot_sizes, None
+        if sizes is not None:
+            self.pane.plot_splitter.restoreState(sizes)
 
     def save_settings(self) -> None:
         """Write what the next session restores (done when the window closes)."""
@@ -410,8 +406,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         settings.setValue(KEY_STATE, json.dumps(self.vm.settings()))
         settings.setValue(KEY_THEME, self.palette_tokens.name)
         settings.setValue(KEY_GEOMETRY, self.saveGeometry())
-        for key, splitter in zip(KEY_SPLITTERS, self._splitters()):
-            settings.setValue(key, splitter.saveState())
+        settings.setValue(KEY_PLOT_COLUMN, self.pane.plot_splitter.saveState())
         settings.sync()
 
     @override
@@ -513,7 +508,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     def _show_page(self) -> None:
         self.pages.setCurrentIndex(self.PAGE_VIEWER if self.vm.loaded else self.PAGE_EMPTY)
-        if self.vm.loaded and self._pending_splitters:
+        if self.vm.loaded and self._pending_plot_sizes is not None:
             QtCore.QTimer.singleShot(0, self._restore_panel_sizes)   # once the pane shows its plots
 
     def _enable_controls(self) -> None:

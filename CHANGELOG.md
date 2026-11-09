@@ -82,7 +82,8 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   playback loops round or bounces back at the end of an axis.
 - **Profiles (#36, phase 5).** A *line profile* plot under the TOF profile, with a *Row | Column |
   Free* toggle. Row and Column read the exact bins of the image row or column through the cursor,
-  named for the image type ("along tangential" on a sinogram or viewgram, the default); Free reads
+  named for the image type ("along tangential" on a sinogram or viewgram, the default), and a dashed
+  line on the image shows that row or column, following the cursor; Free reads
   along a line you drag on the image (with handles to move its ends), interpolated, against the
   distance in bins. It shows the image as displayed (a single TOF bin, or Sum/Mean/Max), and *per
   TOF bin* adds one faint curve per TOF bin along the same line. While TOF is collapsed, the TOF
@@ -91,7 +92,7 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   that LOR, marked on the image, while you change slices; another click or Esc releases them (key
   `F` freezes and releases from the keyboard).
 - **Remembered settings (#36, phase 6).** The viewer remembers, from one session to the next, the
-  window and panel sizes, the theme, the recent files, and the colour map, log display, profile plots
+  window size, the heights of the profile plots, the theme, the recent files, and the colour map, log display, profile plots
   shown, line profile mode, per-TOF-bin overlay, animation speed and loop or bounce. They are kept in
   an INI file in the user's configuration folder (e.g.
   `~/.config/PETProjectionDataVisualization/viewer.ini` on Linux) and saved when the window closes.
@@ -125,8 +126,8 @@ These came out of two independent code reviews, before the split from STIR:
 
 - **New layout (#36, phase 1).** The left column of cards is replaced by a narrow icon rail
   (Data, Info, Display, Settings); clicking an icon opens its controls in a flyout beside it and
-  clicking again closes it. The image gets most of the window, the TOF profile moves to a resizable
-  column on its right (hidden for non-TOF data), and the slice controls (sinogram / viewgram /
+  clicking again closes it. The image gets most of the window, the TOF profile moves to a
+  fixed-width column on its right (so what the plots show never resizes the image) (hidden for non-TOF data), and the slice controls (sinogram / viewgram /
   tangential, the indices, time of flight and Play) move to a toolbar under the image. The cursor
   value is shown under the image instead of in the status bar. The Data flyout also has a
   *Load demo data* button.

@@ -78,6 +78,28 @@ def test_the_default_line_profile_runs_along_tangential():
     assert "along tangential at view" in pane.line_profile.title
 
 
+@pytest.mark.parametrize("slice_mode", MODES)
+def test_the_profile_says_where_its_line_lies_on_the_image(slice_mode):
+    pane, _ = _pane()
+    pane.set_slice_mode(slice_mode)
+    (x, y), (row, col) = _centre(pane)
+    pane.hover_at(x, y)
+    image = pane.dataset.slice(pane.selection)
+    rows, cols = image.shape
+    left, top = image.col_origin - 0.5, image.row_origin - 0.5         # the image's edges, in axis coordinates
+    centre_x, centre_y = float(image.col_origin + col), float(image.row_origin + row)
+    assert pane.line_profile.path == (left, centre_y, left + cols, centre_y)       # Row: across, through the pixel
+    pane.set_line_mode(LineMode.COLUMN)
+    assert pane.line_profile.path == (centre_x, top, centre_x, top + rows)         # Column: down, through the pixel
+    pane.hover_at(x + 2, y + 1)                                                    # it follows the cursor
+    assert pane.line_profile.path == (centre_x + 2, top, centre_x + 2, top + rows)
+    pane.click_at(x + 2, y + 1)
+    pane.hover_at(x, y)                                                            # frozen: it stays
+    assert pane.line_profile.path == (centre_x + 2, top, centre_x + 2, top + rows)
+    pane.set_line_mode(LineMode.FREE)
+    assert pane.line_profile.path == pane.free_line
+
+
 def test_no_cursor_no_row_profile_and_off_image_keeps_the_last_one():
     pane, _ = _pane()
     assert pane.line_profile is None and pane.tof_profile is None

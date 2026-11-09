@@ -7,7 +7,8 @@
 * The **line profile** reads the image as displayed (a single TOF bin, or Sum/Mean/Max), in data units:
   ``ROW`` and ``COLUMN`` take the exact bins of the image row or column through a pixel, ``FREE`` samples
   a line drawn anywhere on the image (interpolated, against the distance in bins). For TOF data it can
-  add one curve per TOF bin along the same line (``overlay``).
+  add one curve per TOF bin along the same line (``overlay``), and says where its line lies on the image
+  (``path``), so the view can draw it there.
 
 An LOR is a dict with the ``segment``, ``view``, ``axial`` and ``tangential`` bin numbers.
 """
@@ -51,6 +52,7 @@ class LineProfile:
     title: str
     overlay: tuple[tuple[float, ...], ...] = ()   # one curve per TOF bin, at the same x
     overlay_bins: tuple[int, ...] = ()
+    path: FreeLine | None = None         # where the line lies on the image (x0, y0, x1, y1), for drawing it there
 
 
 def lor_at(sel: Selection, image: SliceImage, row: int, col: int) -> Lor:
@@ -83,6 +85,17 @@ def default_free_line(image: SliceImage) -> FreeLine:
     x0, y0 = image.col_origin - 0.5, image.row_origin - 0.5
     dx, dy = FREE_LINE_INSET * cols, FREE_LINE_INSET * rows
     return x0 + dx, y0 + dy, x0 + cols - dx, y0 + rows - dy
+
+
+def row_or_column_path(image: SliceImage, mode: LineMode, lor: Lor) -> FreeLine:
+    """Where the ``ROW`` or ``COLUMN`` profile through ``lor`` lies on ``image``: a line through the centre of
+    its pixels, from one edge of the image to the other (axis coordinates, like ``FreeLine``)."""
+    rows, cols = image.shape
+    if mode is LineMode.ROW:
+        y = float(lor[image.row_axis])
+        return image.col_origin - 0.5, y, image.col_origin + cols - 0.5, y
+    x = float(lor[image.col_axis])
+    return x, image.row_origin - 0.5, x, image.row_origin + rows - 0.5
 
 
 def collapsed_value(values: npt.NDArray[np.float64], mode: TofMode) -> float | None:
@@ -131,6 +144,7 @@ def line_profile_for(dataset: ProjDataset, sel: Selection, image: SliceImage, mo
         x_label = "distance (bins)"
         x0, y0, x1, y1 = free_line
         title = f"({image.col_axis}, {image.row_axis}) from ({x0:.1f}, {y0:.1f}) to ({x1:.1f}, {y1:.1f})"
+        path = free_line
     else:
         if lor is None or (pixel := pixel_of(image, lor)) is None:
             return None
@@ -139,6 +153,7 @@ def line_profile_for(dataset: ProjDataset, sel: Selection, image: SliceImage, mo
         else:
             x_label, fixed = image.row_axis, image.col_axis
         title = f"along {x_label} at {fixed} {lor[fixed]}"
+        path = row_or_column_path(image, mode, lor)
     x, y = read(image)
     curves: list[tuple[float, ...]] = []
     bins: tuple[int, ...] = ()
@@ -147,4 +162,5 @@ def line_profile_for(dataset: ProjDataset, sel: Selection, image: SliceImage, mo
         for k in bins:
             _, values = read(dataset.slice(replace(sel, tof_mode=TofMode.BIN, tof=k)))
             curves.append(tuple(float(v) for v in values))
-    return LineProfile(tuple(float(v) for v in x), tuple(float(v) for v in y), x_label, title, tuple(curves), bins)
+    return LineProfile(tuple(float(v) for v in x), tuple(float(v) for v in y), x_label, title, tuple(curves), bins,
+                       path)

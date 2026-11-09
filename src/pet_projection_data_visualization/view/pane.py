@@ -4,10 +4,10 @@
 A pane shows what its ``ProjectionPaneViewModel`` holds: the title and context chips, the image with
 its colour bar (histogram) and, beside it, the colour level controls (Adaptive | Locked, Max, Min and
 the global range), the cursor readout floating in a corner of the image, the slice metrics and, in a
-resizable column on the right, the profile plots: the TOF profile and the line profile (Row | Column |
-Free, with an optional curve per TOF bin). A click on the image freezes both profiles at that LOR,
-marked on the image; another click (or the view model's ``release_freeze``) releases them. It binds only to its own view model and knows
-nothing about the window, the rail or the toolbar, so a window can later hold several panes (#20).
+fixed-width column on the right, the profile plots: the TOF profile and the line profile (Row | Column |
+Free, with an optional curve per TOF bin, and the line it reads drawn on the image). A click on the
+image freezes both profiles at that LOR, marked on the image; another click (or the view model's
+``release_freeze``) releases them. It binds only to its own view model and knows nothing about the window, the rail or the toolbar, so a window can later hold several panes (#20).
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from .tof_plot import TofViewBox
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)  # numpy rows -> screen rows
 
-PLOT_COLUMN_WIDTH = 300       # initial width of the profile plot column; the splitter resizes it
+PLOT_COLUMN_WIDTH = 300       # fixed width of the profile plot column: what the plots show never resizes the image
 NO_PROFILE = "hover over the image"
 NO_LINE_PROFILE = "hover over the image, or choose Free and drag the line"
 OVERLAY_ALPHA = 70            # 0-255: the per-TOF-bin curves are faint, behind the profile of the image
@@ -88,14 +88,11 @@ class ProjectionDataPane(QtWidgets.QWidget):
         header.addWidget(self.chips)
         col.addLayout(header)
 
-        self.splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
-        self.splitter.setChildrenCollapsible(False)
-        self.splitter.addWidget(self._build_image_area())
-        self.splitter.addWidget(self._build_plot_column())
-        self.splitter.setStretchFactor(0, 1)       # the image takes the extra space
-        self.splitter.setStretchFactor(1, 0)
-        self.splitter.setSizes([1000, PLOT_COLUMN_WIDTH])
-        col.addWidget(self.splitter, 1)
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(GAP)
+        body.addWidget(self._build_image_area(), 1)       # the image takes the extra space
+        body.addWidget(self._build_plot_column())
+        col.addLayout(body, 1)
 
     def _build_image_area(self) -> QtWidgets.QWidget:
         area = QtWidgets.QWidget()
@@ -129,6 +126,11 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self.free_roi.setVisible(False)
         self.free_roi.sigRegionChangeFinished.connect(self._on_free_line_moved)
         self.plot.addItem(self.free_roi)
+        # the row or column the line profile reads, drawn on the image; it follows the cursor (or the frozen LOR)
+        self.line_path = pg.PlotDataItem()
+        self.line_path.setZValue(9)
+        self.line_path.setVisible(False)
+        self.plot.addItem(self.line_path)
         # the value under the cursor floats over a corner of the image, out of the cursor's way
         self.readout = QtWidgets.QLabel("", self.glw)
         self.readout.setObjectName("PixelReadout")
@@ -188,12 +190,19 @@ class ProjectionDataPane(QtWidgets.QWidget):
         return self.level_panel
 
     def _build_plot_column(self) -> QtWidgets.QWidget:
-        """The profile plots, stacked in a vertical splitter so each can be resized."""
-        self.plot_column = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        """The profile plots, stacked in a vertical splitter so each can be resized, in a column of fixed width:
+        new titles, tick labels or plots never widen it and shrink the image."""
+        self.plot_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.plot_splitter.setChildrenCollapsible(False)
+        self.plot_splitter.addWidget(self._build_tof_dock())
+        self.plot_splitter.addWidget(self._build_line_dock())
+        # the width is set on a plain widget around the splitter: a QSplitter resets its maximum size when shown
+        self.plot_column = QtWidgets.QWidget()
         self.plot_column.setObjectName("PlotColumn")
-        self.plot_column.setChildrenCollapsible(False)
-        self.plot_column.addWidget(self._build_tof_dock())
-        self.plot_column.addWidget(self._build_line_dock())
+        self.plot_column.setFixedWidth(PLOT_COLUMN_WIDTH)
+        holder = QtWidgets.QVBoxLayout(self.plot_column)
+        holder.setContentsMargins(0, 0, 0, 0)
+        holder.addWidget(self.plot_splitter)
         return self.plot_column
 
     @staticmethod
@@ -278,6 +287,7 @@ class ProjectionDataPane(QtWidgets.QWidget):
         for curve in self.overlay_curves:
             curve.setPen(self._overlay_pen())
         self.freeze_marker.setPen(pg.mkPen(p.marker, width=3))
+        self.line_path.setPen(pg.mkPen(p.marker, width=1.5, style=QtCore.Qt.PenStyle.DashLine))
         style_line_roi(self.free_roi, p)
         fit_graphics_width(self.glw)       # the plot title or the axes may have changed
 
@@ -359,6 +369,7 @@ class ProjectionDataPane(QtWidgets.QWidget):
             self.overlay_switch, lambda: self.overlay_switch.setChecked(self.vm.show_tof_overlay)))
         b("free_line", self._paint_free_line)
         b("line_profile", self._paint_line_profile)
+        b(("line_profile", "show_line_profile", "line_mode"), self._paint_line_path)
         b("frozen_at", self._paint_frozen)
         b("tof_marker", self._paint_tof_marker)
         b("metrics", lambda: self.metrics.set_metrics(self.vm.metrics))
@@ -433,6 +444,18 @@ class ProjectionDataPane(QtWidgets.QWidget):
         self._set_overlay(tuple((prof.x, y) for y in prof.overlay))
         self.line_plot.setLabel("bottom", prof.x_label)
         self.line_title.setText(prof.title)
+
+    def _paint_line_path(self) -> None:
+        """The line the profile reads, on the image. The free line has its own handles (``free_roi``)."""
+        prof = self.vm.line_profile
+        path = prof.path if prof is not None else None
+        shown = path is not None and self.vm.show_line_profile and self.vm.line_mode is not LineMode.FREE
+        self.line_path.setVisible(shown)
+        if path is not None and shown:
+            x0, y0, x1, y1 = path
+            self.line_path.setData([x0, x1], [y0, y1])
+        else:
+            self.line_path.setData([], [])
 
     def _set_overlay(self, curves: tuple[tuple[tuple[float, ...], tuple[float, ...]], ...]) -> None:
         while len(self.overlay_curves) > len(curves):
