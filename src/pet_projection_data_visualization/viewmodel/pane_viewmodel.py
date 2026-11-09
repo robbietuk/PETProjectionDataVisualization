@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from typing import Callable, Concatenate, ParamSpec, TypeVar
+from typing import Callable, Concatenate, Mapping, ParamSpec, TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -219,7 +219,44 @@ class ProjectionPaneViewModel(ObservableObject):
             return self._last_play_axis
         return "tof" if "tof" in axes else sel.active_dimension
 
+    def settings(self) -> dict[str, object]:
+        """The user's display, profile and animation choices, as plain JSON-able values, to restore in a
+        later session with ``restore_settings`` (nothing about the data set itself)."""
+        return {"colormap": self.colormap, "log_display": self.log_display, "fps": self.fps,
+                "play_mode": self.play_mode.name, "show_tof_profile": self.show_tof_profile,
+                "show_line_profile": self.show_line_profile, "line_mode": self.line_mode.name,
+                "show_tof_overlay": self.show_tof_overlay}
+
     # ---- commands --------------------------------------------------------------------
+    @_command
+    def restore_settings(self, saved: Mapping[str, object]) -> None:
+        """Restore what ``settings`` returned. Unknown keys and values of the wrong kind (an old or
+        hand-edited settings file) are skipped, each on its own."""
+        def flag(key: str) -> bool | None:
+            value = saved.get(key)
+            return value if isinstance(value, bool) else None
+
+        colormap = saved.get("colormap")
+        if isinstance(colormap, str) and colormap in COLORMAPS:
+            self.set_colormap(colormap)
+        fps = saved.get("fps")
+        if isinstance(fps, int) and not isinstance(fps, bool):
+            self.set_fps(fps)
+        play_mode = saved.get("play_mode")
+        if isinstance(play_mode, str) and play_mode in PlayMode.__members__:
+            self.set_play_mode(PlayMode[play_mode])
+        line_mode = saved.get("line_mode")
+        if isinstance(line_mode, str) and line_mode in LineMode.__members__:
+            self.set_line_mode(LineMode[line_mode])
+        if (value := flag("log_display")) is not None:
+            self.set_log_display(value)
+        if (value := flag("show_tof_profile")) is not None:
+            self.set_show_tof_profile(value)
+        if (value := flag("show_line_profile")) is not None:
+            self.set_show_line_profile(value)
+        if (value := flag("show_tof_overlay")) is not None:
+            self.set_show_tof_overlay(value)
+
     @_command
     def show_dataset(self, dataset: ProjDataset) -> bool:
         """Show ``dataset`` from its initial selection. Raises if its first slice cannot be read, and then

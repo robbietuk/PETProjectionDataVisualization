@@ -14,6 +14,20 @@ _exit_status = 0
 protect_singletons()
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _private_settings_folder(tmp_path_factory):
+    """``app.launch`` remembers settings in the user's configuration folder: never touch the real one."""
+    try:
+        from PySide6 import QtCore
+    except ImportError:          # no Qt: nothing can write settings
+        yield
+        return
+    folder = tmp_path_factory.mktemp("settings")
+    for scope in (QtCore.QSettings.Scope.UserScope, QtCore.QSettings.Scope.SystemScope):
+        QtCore.QSettings.setPath(QtCore.QSettings.Format.IniFormat, scope, str(folder))
+    yield
+
+
 def pytest_sessionfinish(session, exitstatus):
     global _exit_status
     _exit_status = int(exitstatus)

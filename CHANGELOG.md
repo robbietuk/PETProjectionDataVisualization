@@ -90,6 +90,12 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   with the collapsed value as a dashed reference line. A click on the image freezes both profiles at
   that LOR, marked on the image, while you change slices; another click or Esc releases them (key
   `F` freezes and releases from the keyboard).
+- **Remembered settings (#36, phase 6).** The viewer remembers, from one session to the next, the
+  window and panel sizes, the theme, the recent files, and the colour map, log display, profile plots
+  shown, line profile mode, per-TOF-bin overlay, animation speed and loop or bounce. They are kept in
+  an INI file in the user's configuration folder (e.g.
+  `~/.config/PETProjectionDataVisualization/viewer.ini` on Linux) and saved when the window closes.
+  *Settings* can also hide the line profile; with no plot shown, the image takes the room.
 
 ### Fixed
 
@@ -130,6 +136,8 @@ These came out of two independent code reviews, before the split from STIR:
   bar. The cursor readout floats in a corner of the image and lists the segment, view, axial and
   tangential position, the TOF bin (or the TOF reduction) and the value; when the cursor comes close
   to it, it moves to another corner.
+- `--theme` (and `launch(theme=...)`) now defaults to the theme used last, and dark the first
+  time (#36, phase 6).
 - **Breaking:** for code that drives the view model: everything about the data set on screen
   (selection, levels, display, hover, TOF profile, playback) moved from `ViewerViewModel` to its
   projection data pane, `ViewerViewModel.pane` (a `ProjectionPaneViewModel`); for example

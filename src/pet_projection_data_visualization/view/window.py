@@ -6,12 +6,17 @@ The window only arranges things: the icon rail with its flyouts on the left, the
 pane (``ProjectionDataPane``: image, colour bar, readout, profile plots) in the middle, and the slice
 toolbar under it. The flyouts and the toolbar drive the pane's view model (``vm.pane``).
 
+With a ``QSettings`` (the application passes one; tests and scripts usually do not) the window remembers,
+from one session to the next, its size, the panel sizes, the theme, the recent files and the pane's
+display, profile and animation choices (``ViewerViewModel.settings``). They are saved when it closes.
+
 Rules of this file: widgets send user input to view-model commands, and redraw from view-model
 properties when told they changed (declaratively, through a ``BindingRegistry``). No selection
 logic, no data access, no formatting; colours come from the active ``Palette``.
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Callable, ParamSpec, TypeVar, cast
 
@@ -21,12 +26,18 @@ from ..model import DIMENSIONS
 from ..viewmodel import (COLORMAP_OPTIONS, KEYBOARD_SHORTCUTS, PLAY_MODE_OPTIONS,
                          SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, ViewerViewModel)
 from . import components as ui
+from ._compat import override
 from .pane import ProjectionDataPane
 from .rail import IconRail, is_rail_button
 from .styling import apply_theme
 from .theme import DARK, GAP, LIGHT, PALETTES, Palette
 
 THEME_OPTIONS = ChoiceOptions.from_values(tuple(PALETTES), tuple(name.capitalize() for name in PALETTES))
+# QSettings keys
+KEY_STATE = "viewer/state"              # ViewerViewModel.settings(), as JSON
+KEY_THEME = "window/theme"
+KEY_GEOMETRY = "window/geometry"
+KEY_SPLITTERS = ("window/image_and_plots", "window/plot_column")
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
@@ -45,6 +56,12 @@ def _uses_key(widget: QtWidgets.QWidget, key: QtCore.Qt.Key) -> bool:
     return isinstance(widget, (QtWidgets.QAbstractSlider, QtWidgets.QComboBox) + text_entry)
 
 
+def saved_theme(settings: QtCore.QSettings) -> str | None:
+    """The theme saved by the last session, or None (never saved, or not a theme of this version)."""
+    name = settings.value(KEY_THEME)
+    return name if isinstance(name, str) and name in PALETTES else None
+
+
 def _section(title: str) -> QtWidgets.QLabel:
     """A small heading inside a flyout."""
     label = QtWidgets.QLabel(title)
@@ -55,9 +72,11 @@ def _section(title: str) -> QtWidgets.QLabel:
 class ViewerWindow(QtWidgets.QMainWindow):
     PAGE_EMPTY, PAGE_VIEWER = 0, 1
 
-    def __init__(self, vm: ViewerViewModel, palette: Palette = DARK) -> None:
+    def __init__(self, vm: ViewerViewModel, palette: Palette = DARK, settings: QtCore.QSettings | None = None) -> None:
         super().__init__()
         self.vm = vm
+        self._settings = settings
+        self._pending_splitters: list[tuple[QtWidgets.QSplitter, QtCore.QByteArray]] = []
         self.palette_tokens = palette
         self.resize(1320, 840)
         self._build_menu()
@@ -70,6 +89,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self._declare_bindings()
         self.bindings.start()
         self.pane_bindings.start()
+        self._restore_settings()
 
     # ------------------------------------------------------------------ construction
     def _build_menu(self) -> None:
@@ -350,6 +370,52 @@ class ViewerWindow(QtWidgets.QMainWindow):
             return
         self._shortcut_commands[key]()
 
+    # ------------------------------------------------------------------ settings between sessions
+    def _splitters(self) -> tuple[QtWidgets.QSplitter, QtWidgets.QSplitter]:
+        return self.pane.splitter, self.pane.plot_column
+
+    def _restore_settings(self) -> None:
+        settings = self._settings
+        if settings is None:
+            return
+        state = settings.value(KEY_STATE)
+        if isinstance(state, str):
+            try:
+                saved = json.loads(state)
+            except ValueError:
+                saved = None                         # a damaged file: start from the defaults
+            if isinstance(saved, dict):
+                self.vm.restore_settings({str(k): v for k, v in cast(dict[object, object], saved).items()})
+        geometry = settings.value(KEY_GEOMETRY)
+        if isinstance(geometry, QtCore.QByteArray):
+            self.restoreGeometry(geometry)
+        # the panel sizes are restored once a data set is shown: before that the plot column is hidden
+        self._pending_splitters = [(splitter, sizes) for splitter, key in zip(self._splitters(), KEY_SPLITTERS)
+                                   if isinstance(sizes := settings.value(key), QtCore.QByteArray)]
+
+    def _restore_panel_sizes(self) -> None:
+        pending = self._pending_splitters
+        self._pending_splitters = []
+        for splitter, sizes in pending:
+            splitter.restoreState(sizes)
+
+    def save_settings(self) -> None:
+        """Write what the next session restores (done when the window closes)."""
+        settings = self._settings
+        if settings is None:
+            return
+        settings.setValue(KEY_STATE, json.dumps(self.vm.settings()))
+        settings.setValue(KEY_THEME, self.palette_tokens.name)
+        settings.setValue(KEY_GEOMETRY, self.saveGeometry())
+        for key, splitter in zip(KEY_SPLITTERS, self._splitters()):
+            settings.setValue(key, splitter.saveState())
+        settings.sync()
+
+    @override
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:  # noqa: N802 - Qt override
+        self.save_settings()
+        super().closeEvent(event)
+
     # ------------------------------------------------------------------ theming
     def set_palette(self, palette: Palette) -> None:
         self.palette_tokens = palette
@@ -444,6 +510,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     def _show_page(self) -> None:
         self.pages.setCurrentIndex(self.PAGE_VIEWER if self.vm.loaded else self.PAGE_EMPTY)
+        if self.vm.loaded and self._pending_splitters:
+            QtCore.QTimer.singleShot(0, self._restore_panel_sizes)   # once the pane shows its plots
 
     def _enable_controls(self) -> None:
         for card in (self.toolbar, self.display_card):

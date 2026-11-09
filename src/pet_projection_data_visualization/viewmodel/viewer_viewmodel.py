@@ -12,7 +12,7 @@ from __future__ import annotations
 import contextlib
 import functools
 import os
-from typing import Callable, Concatenate, ParamSpec, TypeVar
+from typing import Callable, Concatenate, Mapping, ParamSpec, TypeVar, cast
 
 from ..model import ProjDataset, ProjDataSource
 from . import formatting
@@ -76,7 +76,24 @@ class ViewerViewModel(ObservableObject):
         self.pane = ProjectionPaneViewModel(on_status=self._set_status, on_error=self._report_error)
         self.refresh_stir_status()
 
+    def settings(self) -> dict[str, object]:
+        """What to remember for the next session, as plain JSON-able values: the recent files and the
+        pane's display, profile and animation choices (see ``restore_settings``)."""
+        return {"recent_files": list(self.recent_files), "pane": self.pane.settings()}
+
     # ---- commands --------------------------------------------------------------------
+    @_command
+    def restore_settings(self, saved: Mapping[str, object]) -> None:
+        """Restore what ``settings`` returned in an earlier session; anything missing or malformed is
+        skipped. Recent files are listed again even if they have gone (opening one then says so)."""
+        files = saved.get("recent_files")
+        if isinstance(files, list):
+            names = cast(list[object], files)       # parsed JSON: anything may be in it
+            self.recent_files = tuple(f for f in names if isinstance(f, str) and f)[:MAX_RECENT_FILES]
+        pane = saved.get("pane")
+        if isinstance(pane, dict):
+            self.pane.restore_settings({str(k): v for k, v in cast(dict[object, object], pane).items()})
+
     @_command
     def load(self, obj: object) -> bool:
         """Load a path, ``stir.ProjData`` or ``ProjDataSource`` through the injected factory into the pane.
