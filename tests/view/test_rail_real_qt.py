@@ -135,8 +135,8 @@ def test_esc_closes_the_open_flyout(win):
 
 def test_esc_closes_the_flyout_wherever_the_focus_is(win):
     win.rail.buttons["settings"].click()
-    win.play_button.setFocus()
-    _press(win.play_button, Key.Key_Escape)
+    win.dim_controls["tof"].play_button.setFocus()
+    _press(win.dim_controls["tof"].play_button, Key.Key_Escape)
     assert win.rail.open_flyout is None
 
 
@@ -158,7 +158,7 @@ def test_without_an_open_flyout_esc_and_clicks_do_nothing_to_the_rail(win):
     seen = []
     win.rail.flyoutChanged.connect(seen.append)
     _click(win.pane.glw.viewport())
-    _press(win.play_button, Key.Key_Escape)
+    _press(win.dim_controls["tof"].play_button, Key.Key_Escape)
     assert seen == [] and win.rail.open_flyout is None
 
 

@@ -180,11 +180,11 @@ def test_tof_visibility_follows_the_data(window_module):
     h = Harness(window_module, small_demo())
     recorded = {}
     h.win.pane.tof_dock.setVisible = lambda v: recorded.__setitem__("dock", v)
-    h.win.tof_box.setVisible = lambda v: recorded.__setitem__("box", v)
+    h.win.dim_controls["tof"].setVisible = lambda v: recorded.__setitem__("row", v)
     h.vm.load(non_tof_source())
-    assert recorded == {"dock": False, "box": False}
+    assert recorded == {"dock": False, "row": False}
     h.vm.load(small_demo())
-    assert recorded == {"dock": True, "box": True}
+    assert recorded == {"dock": True, "row": True}
 
 
 def test_error_goes_to_the_inline_banner_and_dismiss_clears_it(window_module):
@@ -328,19 +328,46 @@ def test_wait_cursor_is_restored_even_when_a_command_raises(window_module):
     assert cursor == ["busy", "done"]
 
 
-def test_dimension_control_states_reach_the_widgets(window_module):
+def test_toolbar_rows_reach_the_widgets_and_the_image_axes_are_hidden(window_module):
     h = Harness(window_module)
-    seen = {}
+    seen, visible = {}, {}
     for name, ctrl in h.win.dim_controls.items():
-        ctrl.show_state = (lambda n: lambda label, lo, hi, value, enabled: seen.__setitem__(n, (lo, hi, value, enabled)))(name)
+        ctrl.show_row = (lambda n: lambda label, lo, hi, value, enabled, can_play, tip, playing:
+                         seen.__setitem__(n, (lo, hi, value, enabled, can_play, playing)))(name)
+        ctrl.setVisible = (lambda n: lambda v: visible.__setitem__(n, v))(name)
     h.vm.load(small_demo())
-    assert seen["axial"] == (0, 7, 3, True) and seen["view"][3] is False and seen["tof"] == (0, 4, 2, True)
+    assert seen["axial"] == (0, 7, 3, True, True, False) and seen["tof"] == (0, 4, 2, True, True, False)
+    assert visible == {"segment": True, "axial": True, "view": False, "tangential": False, "tof": True}
+    h.vm.pane.toggle_play_axis("segment")
+    assert seen["segment"][5] is True and seen["tof"][5] is False
+    h.vm.pane.set_slice_mode(SliceMode.VIEWGRAM)
+    assert visible["axial"] is False and visible["view"] is True
 
 
-def test_slice_and_display_cards_are_disabled_until_loaded(window_module):
+def test_row_buttons_go_through_view_model_commands(window_module):
+    h = Harness(window_module, small_demo())
+    called = []
+    h.win._run = lambda cmd, *a, **k: called.append((cmd.__name__, a))
+    h.win._axis_slot("view", lambda: h.vm.pane.step)(-1)
+    h.win._axis_slot("tof", lambda: h.vm.pane.set_value)(3)
+    assert called == [("step", ("view", -1)), ("set_value", ("tof", 3))]
+
+
+def test_space_hint_follows_the_play_target(window_module):
+    h = Harness(window_module, small_demo())
+    texts, enabled = [], []
+    h.win.space_hint.setText = texts.append
+    h.win.space_hint.setEnabled = enabled.append
+    h.vm.pane.set_tof_mode(TofMode.SUM)
+    assert texts[-1] == "Space plays the TOF bin" and enabled[-1] is False
+    h.vm.pane.toggle_play_axis("axial")
+    assert texts[-1] == "Space pauses the axial position" and enabled[-1] is True
+
+
+def test_slice_toolbar_and_display_cards_are_disabled_until_loaded(window_module):
     h = Harness(window_module)
     states = []
-    h.win.slice_card.setEnabled = states.append
+    h.win.toolbar.setEnabled = states.append
     h.win.display_card.setEnabled = states.append
     h.vm.load(small_demo())
     assert states == [True, True]

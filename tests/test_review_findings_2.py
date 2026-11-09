@@ -62,7 +62,7 @@ def test_2_failed_read_keeps_selection_controls_and_picture_consistent(change):
     src = FailOn(small_demo(), lambda s, t: fail["on"])
     vm = vm_with(src)
     vm.pane.set_value("segment", 0)
-    before_sel, before_img, before_dims = vm.pane.selection, vm.pane.image, vm.pane.dimensions
+    before_sel, before_img, before_dims = vm.pane.selection, vm.pane.image, vm.pane.axis_rows
     seen = []
     vm.pane.subscribe(lambda names: seen.append(set(names)))
     fail["on"] = True
@@ -70,10 +70,10 @@ def test_2_failed_read_keeps_selection_controls_and_picture_consistent(change):
     vm.pane.dataset._reduced.clear()
     change(vm)
     assert vm.error and "Could not read" in vm.error
-    assert vm.pane.selection == before_sel and vm.pane.image is before_img and vm.pane.dimensions == before_dims
+    assert vm.pane.selection == before_sel and vm.pane.image is before_img and vm.pane.axis_rows == before_dims
     assert vm.pane.slice_mode is before_sel.slice_mode and vm.pane.tof_mode is before_sel.tof_mode
     assert not vm.pane.playing
-    assert any("dimensions" in n for n in seen)          # the view is told to put its widgets back
+    assert any("axis_rows" in n for n in seen)          # the view is told to put its widgets back
 
 
 def test_2_failed_global_level_mode_is_not_left_selected():

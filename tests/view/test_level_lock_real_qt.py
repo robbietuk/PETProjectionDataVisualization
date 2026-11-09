@@ -107,11 +107,12 @@ def test_colour_bar_moves_with_the_slice_when_adaptive(win):
 def test_playback_keeps_the_colour_bar_when_locked(win):
     win.vm.pane.toggle_level_lock()
     locked = _colour_bar(win)
-    win.play_button.click()
+    play = win.dim_controls["tof"].play_button
+    play.click()
     for _ in range(7):
         win._on_timer()
         assert _colour_bar(win) == locked
-    win.play_button.click()
+    play.click()
 
 
 def test_dragging_the_histogram_while_locked_keeps_the_lock_at_the_new_values(win):
@@ -157,8 +158,9 @@ def test_locked_chip_is_shown_in_the_header(win):
 
 
 def test_L_toggles_the_lock(win):
-    win.play_button.setFocus()                               # a widget with no use for L
-    _press(win.play_button, Key.Key_L)
+    play = win.dim_controls["tof"].play_button
+    play.setFocus()                                          # a widget with no use for L
+    _press(play, Key.Key_L)
     assert win.vm.pane.level_mode is LevelMode.LOCKED
     seg = win.dim_controls["segment"]._slider                # sliders do not use letters either
     seg.setFocus()

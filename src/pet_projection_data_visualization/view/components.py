@@ -396,49 +396,104 @@ class EmptyState(QtWidgets.QWidget):
         return b
 
 
-class DimensionControl(QtWidgets.QWidget):
-    """Label + slider + spin box for one index.
+PLAY_TEXT, PAUSE_TEXT = "▶", "❚❚"
+WIDEST_AXIS_LABEL = "Tangential position"
 
-    ``userChanged`` fires only for user edits; ``show_state`` updates the widgets without firing it.
-    """
+
+class _AxisLabel(QtWidgets.QLabel):
+    """The name of a toolbar row, as wide as the widest name, so the rows' controls line up."""
+
+    @override
+    def minimumSizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        hint = super().minimumSizeHint()
+        return QtCore.QSize(max(hint.width(), self.fontMetrics().horizontalAdvance(WIDEST_AXIS_LABEL) + 8),
+                            hint.height())
+
+    @override
+    def sizeHint(self) -> QtCore.QSize:  # noqa: N802 - Qt override
+        return self.minimumSizeHint().expandedTo(super().sizeHint())
+
+
+class AxisRowControl(QtWidgets.QWidget):
+    """One compact row of the slice toolbar: name, ‹ value box ›, slider, play button and, optionally, an
+    extra control on the right (the TOF row's Bin | Sum | Mean | Max).
+
+    ``userChanged(value)``, ``stepRequested(±1)`` and ``playClicked()`` fire for user input only;
+    ``show_row`` updates every widget without firing them."""
 
     userChanged = QtCore.Signal(int)
+    stepRequested = QtCore.Signal(int)
+    playClicked = QtCore.Signal()
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(self, extra: QtWidgets.QWidget | None = None, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-        self._label = QtWidgets.QLabel("")
-        self._range = QtWidgets.QLabel("")
-        self._range.setObjectName("Muted")
-        self._slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        self._label = _AxisLabel("")
+        self._label.setObjectName("Muted")
+        self._prev = self._small_button("‹")
+        self._next = self._small_button("›")
         self._spin = QtWidgets.QSpinBox()
-        self._spin.setMinimumWidth(72)            # a minimum, not a fixed width: the panel can narrow
-        head = QtWidgets.QHBoxLayout()
-        head.setContentsMargins(0, 0, 0, 0)
-        head.addWidget(self._label)
-        head.addStretch(1)
-        head.addWidget(self._range)
-        row = QtWidgets.QHBoxLayout()
+        self._spin.setMinimumWidth(64)
+        self._slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        self._slider.setMinimumWidth(80)
+        self._play = QtWidgets.QPushButton(PLAY_TEXT)
+        self._play.setCheckable(True)
+        self._play.setProperty("compact", "true")
+        self._play.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        row = QtWidgets.QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self._slider, 1)
+        row.setSpacing(6)
+        row.addWidget(self._label)
+        row.addWidget(self._prev)
         row.addWidget(self._spin)
-        col = QtWidgets.QVBoxLayout(self)
-        col.setContentsMargins(0, 2, 0, 2)
-        col.setSpacing(4)
-        col.addLayout(head)
-        col.addLayout(row)
+        row.addWidget(self._next)
+        row.addWidget(self._slider, 1)
+        row.addWidget(self._play)
+        self.extra = extra
+        if extra is not None:
+            row.addWidget(extra)
         self._slider.valueChanged.connect(self._spin.setValue)
         self._spin.valueChanged.connect(self._slider.setValue)
         self._spin.valueChanged.connect(self.userChanged)
+        self._prev.clicked.connect(lambda _=False: self.stepRequested.emit(-1))
+        self._next.clicked.connect(lambda _=False: self.stepRequested.emit(+1))
+        self._play.clicked.connect(lambda _=False: self.playClicked.emit())
 
-    def show_state(self, label: str, lo: int, hi: int, value: int, enabled: bool) -> None:
+    @staticmethod
+    def _small_button(text: str) -> QtWidgets.QPushButton:
+        b = QtWidgets.QPushButton(text)
+        b.setProperty("variant", "ghost")
+        b.setProperty("compact", "true")
+        b.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        return b
+
+    @property
+    def play_button(self) -> QtWidgets.QPushButton:
+        return self._play
+
+    def show_row(self, label: str, lo: int, hi: int, value: int, enabled: bool,
+                 can_play: bool, play_tip: str, playing: bool) -> None:
         def apply() -> None:
             for w in (self._slider, self._spin):
                 w.setRange(lo, hi)
                 w.setValue(value)
         silently(self._slider, lambda: silently(self._spin, apply))
         self._label.setText(label)
-        self._range.setText(f"{lo} – {hi}")
-        self.setEnabled(enabled)
+        for w in (self._label, self._spin, self._slider):
+            w.setToolTip(f"{label}: {lo} – {hi}")
+            w.setEnabled(enabled)
+        self._spin.setAccessibleName(label)
+        self._slider.setAccessibleName(label)
+        self._prev.setToolTip(f"{label}: previous")
+        self._next.setToolTip(f"{label}: next")
+        self._prev.setAccessibleName(f"{label}: previous")
+        self._next.setAccessibleName(f"{label}: next")
+        self._prev.setEnabled(enabled and value > lo)
+        self._next.setEnabled(enabled and value < hi)
+        silently(self._play, lambda: self._play.setChecked(playing))
+        self._play.setText(PAUSE_TEXT if playing else PLAY_TEXT)
+        self._play.setEnabled(can_play or playing)
+        self._play.setToolTip(play_tip)
+        self._play.setAccessibleName(f"{label}: {'pause' if playing else 'play'}")
 
 
 class SidePanel(QtWidgets.QScrollArea):

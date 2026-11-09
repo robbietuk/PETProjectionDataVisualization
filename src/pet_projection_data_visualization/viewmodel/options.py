@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Final, Generic, Hashable, Mapping, Sequence, TypeVar
 
 from ..model import SliceMode, TofMode
+from .playback import PlayMode
 
 T = TypeVar("T", bound=Hashable)
 E = TypeVar("E", bound=Enum)
@@ -79,10 +80,11 @@ TOF_MODE_OPTIONS = ChoiceOptions.from_enum(
 LEVEL_MODE_OPTIONS = ChoiceOptions.from_enum(
     LevelMode, {LevelMode.ADAPTIVE: "Adaptive", LevelMode.LOCKED: "Locked"})
 COLORMAP_OPTIONS = ChoiceOptions.from_values(COLORMAPS)
+PLAY_MODE_OPTIONS = ChoiceOptions.from_enum(PlayMode)
 
 # (keys, what they do), listed in the Profiles and settings flyout
 KEYBOARD_SHORTCUTS: Final = (
-    ("Space", "Play or pause"),
+    ("Space", "Play or pause the axis played last"),
     ("Left / Right", "Step the fixed axis (axial, view or tangential)"),
     ("Page Up / Page Down", "Next or previous segment"),
     ("L", "Lock or unlock the colour levels"),

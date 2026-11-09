@@ -83,7 +83,8 @@ def test_every_old_card_control_has_a_home(win):
     for w in (win.cmap_control, win.level_control, win.global_button, win.log_switch, *win.level_edits.values()):
         assert flyout["display"].isAncestorOf(w)
     assert flyout["settings"].isAncestorOf(win.fps_spin)
-    for w in (win.mode_control, win.tof_mode_control, win.play_button, *win.dim_controls.values()):
+    assert flyout["settings"].isAncestorOf(win.play_mode_control)
+    for w in (win.mode_control, win.tof_mode_control, *win.dim_controls.values()):
         assert win.toolbar.isAncestorOf(w)
 
 
@@ -131,7 +132,7 @@ def test_non_tof_data_hides_the_plot_column_and_the_image_widens(win, app):
     before = win.pane.glw.width()
     win.vm.load(non_tof_source())
     app.processEvents()
-    assert win.pane.plot_column.isHidden() and win.tof_box.isHidden()
+    assert win.pane.plot_column.isHidden() and win.dim_controls["tof"].isHidden()
     assert win.pane.glw.width() > before
 
 

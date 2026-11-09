@@ -102,14 +102,31 @@ def test_empty_state_keeps_qwidget_actions(app):
     assert es.actions() == [] and es.action_row.indexOf(btn) == 0
 
 
-def test_dimension_control_emits_only_for_user_edits(app):
-    ctrl = ui.DimensionControl()
-    seen = []
+def test_axis_row_emits_only_for_user_input(app):
+    ctrl = ui.AxisRowControl()
+    seen, steps, plays = [], [], []
     ctrl.userChanged.connect(seen.append)
-    ctrl.show_state("Axial", 0, 7, 3, True)
-    assert seen == [] and ctrl._spin.value() == 3 and ctrl._range.text().startswith("0")
+    ctrl.stepRequested.connect(steps.append)
+    ctrl.playClicked.connect(lambda: plays.append(True))
+    ctrl.show_row("Axial position", 0, 7, 3, True, True, "Play through axial position 0 to 7", False)
+    assert seen == [] and ctrl._spin.value() == 3 and ctrl._slider.maximum() == 7
+    assert ctrl.play_button.text() == ui.PLAY_TEXT and ctrl.play_button.toolTip().startswith("Play through")
     ctrl._spin.setValue(5)
     assert seen == [5] and ctrl._slider.value() == 5
+    ctrl._prev.click()
+    ctrl._next.click()
+    ctrl.play_button.click()
+    assert steps == [-1, 1] and plays == [True]
+
+
+def test_axis_row_shows_playing_disabled_and_the_ends_of_the_range(app):
+    ctrl = ui.AxisRowControl(extra=QtWidgets.QLabel("extra"))
+    ctrl.show_row("TOF bin", 0, 4, 0, True, True, "", True)
+    assert ctrl.play_button.isChecked() and ctrl.play_button.text() == ui.PAUSE_TEXT
+    assert not ctrl._prev.isEnabled() and ctrl._next.isEnabled()          # at the first bin
+    ctrl.show_row("TOF bin", 0, 4, 2, False, False, "choose Bin", False)
+    assert not ctrl._spin.isEnabled() and not ctrl.play_button.isEnabled() and ctrl.extra.isEnabled()
+    assert ctrl.play_button.toolTip() == "choose Bin" and not ctrl._prev.isEnabled()
 
 
 def test_apply_theme_installs_stylesheet_and_palette(app):

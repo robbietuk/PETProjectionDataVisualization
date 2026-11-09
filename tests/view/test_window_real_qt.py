@@ -39,7 +39,12 @@ def test_user_edits_flow_into_the_view_model(win):
     win.mode_control._buttons[1].click()
     assert win.vm.pane.slice_mode is SliceMode.VIEWGRAM
     win.tof_mode_control._buttons[list(TofMode).index(TofMode.SUM)].click()
-    assert win.vm.pane.tof_mode is TofMode.SUM and not win.play_button.isEnabled()
+    tof_play = win.dim_controls["tof"].play_button
+    assert win.vm.pane.tof_mode is TofMode.SUM and not tof_play.isEnabled() and "Sum" in tof_play.toolTip()
+    win.dim_controls["segment"].play_button.click()
+    assert win.vm.pane.play_axis == "segment"
+    win.dim_controls["segment"]._next.click()
+    assert win.vm.pane.selection.segment == 1
     win.log_switch.setChecked(True)
     assert win.vm.pane.log_display
     win.level_control._buttons[list(LevelMode).index(LevelMode.LOCKED)].click()
@@ -55,9 +60,11 @@ def test_view_model_changes_flow_into_the_widgets(win):
     assert win.dim_controls["axial"]._spin.value() == 5
     vm.pane.set_slice_mode(SliceMode.TANGENTIAL)
     assert win.mode_control.choice() is SliceMode.TANGENTIAL
-    assert win.dim_controls["tangential"].isEnabled() and not win.dim_controls["axial"].isEnabled()
+    assert not win.dim_controls["tangential"].isHidden() and win.dim_controls["axial"].isHidden()
     vm.pane.set_tof_mode(TofMode.MEAN)
-    assert win.tof_mode_control.choice() is TofMode.MEAN and not win.dim_controls["tof"].isEnabled()
+    tof = win.dim_controls["tof"]
+    assert win.tof_mode_control.choice() is TofMode.MEAN and not tof._spin.isEnabled()
+    assert not tof.play_button.isEnabled() and win.tof_mode_control.isEnabled()      # Bin can be chosen again
     assert "Source" in win.info_view.toPlainText()
 
 
@@ -79,12 +86,32 @@ def test_image_is_drawn_with_real_bin_coordinates(win):
 def test_playback_timer_follows_the_view_model(win):
     assert not win._timer.isActive()
     win.vm.pane.set_playing(True)
-    assert win._timer.isActive() and win.play_button.isChecked()
+    tof_play = win.dim_controls["tof"].play_button
+    assert win._timer.isActive() and tof_play.isChecked()
     before = win.vm.pane.selection.tof
     win._on_timer()
     assert win.vm.pane.selection.tof != before
     win.vm.pane.set_tof_mode(TofMode.SUM)
-    assert not win._timer.isActive() and not win.play_button.isChecked()
+    assert not win._timer.isActive() and not tof_play.isChecked()
+
+
+def test_row_play_buttons_play_one_axis_at_a_time(win):
+    seg, axial = win.dim_controls["segment"].play_button, win.dim_controls["axial"].play_button
+    seg.click()
+    assert win._timer.isActive() and seg.isChecked() and not axial.isChecked()
+    axial.click()
+    assert win.vm.pane.play_axis == "axial" and axial.isChecked() and not seg.isChecked()
+    assert "pauses the axial" in win.space_hint.text()
+    axial.click()
+    assert not win._timer.isActive() and not axial.isChecked()
+
+
+def test_play_mode_and_speed_controls_in_the_settings_flyout(win):
+    from pet_projection_data_visualization.viewmodel import PlayMode
+    win.play_mode_control._buttons[list(PlayMode).index(PlayMode.BOUNCE)].click()
+    assert win.vm.pane.play_mode is PlayMode.BOUNCE
+    win.vm.pane.set_play_mode(PlayMode.LOOP)
+    assert win.play_mode_control.choice() is PlayMode.LOOP
 
 
 def test_user_dragging_levels_makes_them_manual_and_applying_levels_does_not_echo(win):
@@ -97,7 +124,7 @@ def test_user_dragging_levels_makes_them_manual_and_applying_levels_does_not_ech
 
 def test_non_tof_data_hides_the_tof_controls(win):
     win.vm.load(non_tof_source())
-    assert win.tof_box.isHidden()
+    assert win.dim_controls["tof"].isHidden() and not win.tof_mode_control.isVisibleTo(win)
     assert win.pane.tof_dock.isHidden()
 
 
@@ -192,10 +219,11 @@ def test_arrow_keys_go_to_the_focused_slider_not_the_active_dimension(win, app):
     _press(seg, QtCore.Qt.Key.Key_Left)
     assert win.vm.pane.selection.segment == before[0] - 1 and win.vm.pane.selection.axial == before[1]
     # focus on something without its own use for arrows (here: a button), the window steps the active dimension
-    win.play_button.setFocus()
-    _press(win.play_button, QtCore.Qt.Key.Key_Left)             # (Right would clamp: axial 3 is the last in segment -1)
+    button = win.dim_controls["tof"].play_button
+    button.setFocus()
+    _press(button, QtCore.Qt.Key.Key_Left)             # (Right would clamp: axial 3 is the last in segment -1)
     assert win.vm.pane.selection.axial == before[1] - 1 and win.vm.pane.selection.segment == before[0] - 1
-    _press(win.play_button, QtCore.Qt.Key.Key_PageUp)
+    _press(button, QtCore.Qt.Key.Key_PageUp)
     assert win.vm.pane.selection.segment == before[0]
     win.mode_control._buttons[0].setFocus()                       # Space must not re-click a focused button
     _press(win.mode_control._buttons[0], QtCore.Qt.Key.Key_Space)

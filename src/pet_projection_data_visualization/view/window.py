@@ -18,8 +18,9 @@ from typing import Callable, Generator, ParamSpec, TypeVar, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..viewmodel import (COLORMAP_OPTIONS, KEYBOARD_SHORTCUTS, LEVEL_MODE_OPTIONS, SLICE_MODE_OPTIONS,
-                         TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, ViewerViewModel)
+from ..model import DIMENSIONS
+from ..viewmodel import (COLORMAP_OPTIONS, KEYBOARD_SHORTCUTS, LEVEL_MODE_OPTIONS, PLAY_MODE_OPTIONS,
+                         SLICE_MODE_OPTIONS, TOF_MODE_OPTIONS, BindingRegistry, ChoiceOptions, ViewerViewModel)
 from . import components as ui
 from .pane import ProjectionDataPane
 from .rail import IconRail, is_rail_button
@@ -30,7 +31,6 @@ THEME_OPTIONS = ChoiceOptions.from_values(tuple(PALETTES), tuple(name.capitalize
 LEVEL_LOCK_TIP = ("Colour levels (L): Adaptive recomputes Min/Max for every slice; Locked keeps Min/Max and the "
                   "colour bar constant while you change view, axial position, segment, TOF bin, slice mode or "
                   "log display. Typing a level or dragging the histogram locks at the new values.")
-DIMENSION_WIDTH = 210         # minimum width of one slider + spin box in the toolbar
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
@@ -153,7 +153,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _settings_peek(self) -> str:
         pane = self.vm.pane
         return (f"TOF profile: {'shown' if pane.show_tof_profile else 'hidden'}\n"
-                f"Animation speed: {pane.fps} fps")
+                f"Animation: {pane.fps} fps, {PLAY_MODE_OPTIONS.label_of(pane.play_mode).lower()}")
 
     def _build_data_flyout(self, card: ui.Card) -> None:
         self.loaded_label = QtWidgets.QLabel("")          # name of the loaded data set
@@ -248,6 +248,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.fps_spin.setAccessibleName("Animation speed")
         self.fps_spin.valueChanged.connect(self._slot(lambda: self.vm.pane.set_fps))
         card.body.addWidget(ui.LabeledRow("Speed", self.fps_spin))
+        self.play_mode_control = ui.SegmentedControl(PLAY_MODE_OPTIONS)
+        self.play_mode_control.setAccessibleName("At the end of an axis: loop round or bounce back")
+        self.play_mode_control.setToolTip("At the end of the axis, Loop starts again from the other end; "
+                                          "Bounce turns round and plays back")
+        self.play_mode_control.choiceChanged.connect(self._slot(lambda: self.vm.pane.set_play_mode))
+        card.body.addWidget(ui.LabeledRow("At the end", self.play_mode_control))
         card.body.addWidget(_section("Keyboard shortcuts"))
         self.shortcut_list = QtWidgets.QWidget()
         grid = QtWidgets.QGridLayout(self.shortcut_list)
@@ -276,55 +282,49 @@ class ViewerWindow(QtWidgets.QMainWindow):
         return page
 
     def _build_toolbar(self) -> QtWidgets.QWidget:
-        """The slice toolbar under the image: the image type, the indices, and time of flight."""
-        self.toolbar = QtWidgets.QWidget()
-        self.toolbar.setObjectName("SliceToolbar")
-        row = QtWidgets.QHBoxLayout(self.toolbar)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(12)
-
-        self.slice_card = ui.Card("Slice")
-        slice_row = QtWidgets.QHBoxLayout()
-        slice_row.setSpacing(16)
+        """The slice toolbar under the image: the image type tabs on the left, and on the right one row
+        per axis not shown in the image (which rows, and their state, come from ``vm.pane.axis_rows``)."""
+        self.toolbar = ui.Card()
+        self.toolbar.setAccessibleName("Slice toolbar")
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(2 * GAP)
+        left = QtWidgets.QVBoxLayout()
+        left.setSpacing(6)
         self.mode_control = ui.SegmentedControl(SLICE_MODE_OPTIONS)
+        self.mode_control.setAccessibleName("Image type")
         self.mode_control.choiceChanged.connect(self._slot(lambda: self.vm.pane.set_slice_mode))
         self.mode_control.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,    # never clip its labels
                                         QtWidgets.QSizePolicy.Policy.Preferred)
-        slice_row.addWidget(self.mode_control, 0, QtCore.Qt.AlignmentFlag.AlignTop)
-        grid = QtWidgets.QGridLayout()
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(4)
-        self.dim_controls: dict[str, ui.DimensionControl] = {}
-        for i, dim in enumerate(("segment", "axial", "view", "tangential")):
-            self.dim_controls[dim] = ctrl = self._dimension_control(dim)
-            grid.addWidget(ctrl, i // 2, i % 2)
-        slice_row.addLayout(grid, 1)
-        self.slice_card.body.addLayout(slice_row)
-        row.addWidget(self.slice_card, 2)
+        left.addWidget(self.mode_control)
+        self.space_hint = QtWidgets.QLabel("")
+        self.space_hint.setObjectName("Muted")
+        left.addWidget(self.space_hint)
+        left.addStretch(1)
+        row.addLayout(left)
 
-        self.tof_box = ui.Card("Time of flight")
+        rows = QtWidgets.QVBoxLayout()
+        rows.setSpacing(4)
         self.tof_mode_control = ui.SegmentedControl(TOF_MODE_OPTIONS)
+        self.tof_mode_control.setAccessibleName("Time of flight: one bin, or the sum, mean or maximum over the bins")
         self.tof_mode_control.choiceChanged.connect(self._slot(lambda: self.vm.pane.set_tof_mode))
-        self.tof_box.body.addWidget(self.tof_mode_control)
-        self.dim_controls["tof"] = tof_ctrl = self._dimension_control("tof")
-        tof_row = QtWidgets.QHBoxLayout()
-        tof_row.addWidget(tof_ctrl, 1)
-        self.play_button = QtWidgets.QPushButton("Play  (Space)")
-        self.play_button.setCheckable(True)
-        self.play_button.toggled.connect(self._slot(lambda: self.vm.pane.set_playing))
-        tof_row.addWidget(self.play_button, 0, QtCore.Qt.AlignmentFlag.AlignBottom)
-        self.tof_box.body.addLayout(tof_row)
-        row.addWidget(self.tof_box, 1)
+        self.tof_mode_control.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,    # never clip its labels
+                                            QtWidgets.QSizePolicy.Policy.Preferred)
+        self.dim_controls: dict[str, ui.AxisRowControl] = {}
+        for dim in DIMENSIONS:                  # shown in this order; _paint_rows hides the image's axes
+            ctrl = ui.AxisRowControl(self.tof_mode_control if dim == "tof" else None)
+            ctrl.userChanged.connect(self._axis_slot(dim, lambda: self.vm.pane.set_value))
+            ctrl.stepRequested.connect(self._axis_slot(dim, lambda: self.vm.pane.step))
+            ctrl.playClicked.connect(lambda d=dim: self._run(self.vm.pane.toggle_play_axis, d))
+            ctrl.setVisible(False)
+            self.dim_controls[dim] = ctrl
+            rows.addWidget(ctrl)
+        row.addLayout(rows, 1)
+        self.toolbar.body.addLayout(row)
         return self.toolbar
 
-    def _dimension_control(self, dim: str) -> ui.DimensionControl:
-        ctrl = ui.DimensionControl()
-        ctrl.setMinimumWidth(DIMENSION_WIDTH)
-
-        def on_change(value: int) -> None:
-            self._run(self.vm.pane.set_value, dim, value)
-        ctrl.userChanged.connect(on_change)
-        return ctrl
+    def _axis_slot(self, dim: str, command: Callable[[], Callable[[str, int], object]]) -> Callable[[int], None]:
+        """A slot for a row's ``userChanged(value)`` or ``stepRequested(delta)``: ``command()(dim, n)``."""
+        return lambda n: self._run(command(), dim, n)
 
     def _install_shortcuts(self) -> None:
         """Window-wide keys. A QShortcut pre-empts the focused widget, so when the focus is on a widget that
@@ -441,33 +441,42 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
         pane = self.vm.pane
         p = self.pane_bindings.bind
-        p("tof_available", lambda: self.tof_box.setVisible(pane.tof_available))
         p("tof_available", lambda: self.tof_profile_switch.setEnabled(pane.tof_available))
         p("show_tof_profile", lambda: ui.silently(
             self.tof_profile_switch, lambda: self.tof_profile_switch.setChecked(pane.show_tof_profile)))
-        p("dimensions", self._paint_dimensions)
+        p("axis_rows", self._paint_rows)
         p("slice_mode", lambda: self.mode_control.set_choice(pane.slice_mode))
         p("tof_mode", lambda: self.tof_mode_control.set_choice(pane.tof_mode))
-        p("can_play", lambda: self.play_button.setEnabled(pane.can_play))
+        p(("space_hint", "can_play"), self._paint_space_hint)
         p("fps", self._paint_fps)
-        p("playing", self._paint_playing)
+        p(("playing", "play_axis"), self._paint_playing)
+        p("play_mode", lambda: self.play_mode_control.set_choice(pane.play_mode))
         p("colormap", lambda: self.cmap_control.set_choice(pane.colormap))
         p("level_mode", lambda: self.level_control.set_choice(pane.level_mode))
         p("log_display", lambda: ui.silently(self.log_switch, lambda: self.log_switch.setChecked(pane.log_display)))
         p("levels", self._paint_level_edits)
         p("info_text", lambda: self.info_view.setPlainText(pane.info_text))
-        p(("summary", "colormap", "log_display", "show_tof_profile", "fps"), self.rail.refresh_peek)
+        p(("summary", "colormap", "log_display", "show_tof_profile", "fps", "play_mode"), self.rail.refresh_peek)
 
     def _show_page(self) -> None:
         self.pages.setCurrentIndex(self.PAGE_VIEWER if self.vm.loaded else self.PAGE_EMPTY)
 
     def _enable_controls(self) -> None:
-        for card in (self.slice_card, self.display_card):
+        for card in (self.toolbar, self.display_card):
             card.setEnabled(self.vm.loaded)
 
-    def _paint_dimensions(self) -> None:
-        for state in self.vm.pane.dimensions:
-            self.dim_controls[state.name].show_state(state.label, state.lo, state.hi, state.value, state.enabled)
+    def _paint_rows(self) -> None:
+        rows = {row.name: row for row in self.vm.pane.axis_rows}
+        for name, ctrl in self.dim_controls.items():
+            row = rows.get(name)
+            if row is not None:
+                ctrl.show_row(row.label, row.lo, row.hi, row.value, row.enabled, row.can_play, row.play_tip,
+                              row.playing)
+            ctrl.setVisible(row is not None)
+
+    def _paint_space_hint(self) -> None:
+        self.space_hint.setText(self.vm.pane.space_hint)
+        self.space_hint.setEnabled(self.vm.pane.can_play)
 
     def _paint_stir_available(self) -> None:
         available = self.vm.stir_available
@@ -498,10 +507,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self._timer.start(int(1000 / self.vm.pane.fps))
 
     def _paint_playing(self) -> None:
-        playing = self.vm.pane.playing
-        ui.silently(self.play_button, lambda: self.play_button.setChecked(playing))
-        self.play_button.setText("Pause  (Space)" if playing else "Play  (Space)")
-        if playing:
+        """The timer; the rows' play buttons are drawn from ``axis_rows``."""
+        if self.vm.pane.playing:
             self._timer.start(int(1000 / self.vm.pane.fps))
         else:
             self._timer.stop()

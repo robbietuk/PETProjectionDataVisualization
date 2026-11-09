@@ -165,6 +165,7 @@ QPushButton[segment="true"]:disabled {{ color: {p.border}; background: transpare
 QFrame#Segmented {{ background: {p.raised}; border: 1px solid {p.border_subtle}; border-radius: {RADIUS_SMALL + 1}px; }}
 QPushButton[rail="true"] {{ padding: 10px 2px; font-size: {FONT_SIZE_SMALL + 1}px; }}
 QPushButton[align="left"] {{ text-align: left; padding: 4px 8px; }}
+QPushButton[compact="true"] {{ padding: 4px 8px; min-width: 12px; }}
 QLabel#Peek {{ background: {p.surface}; color: {p.text}; border: 1px solid {p.border}; border-radius: {RADIUS_SMALL}px;
     padding: 8px 10px; }}
 QLabel#Section {{ color: {p.text_muted}; font-size: {FONT_SIZE_SMALL}px; font-weight: 600; padding-top: 6px; }}

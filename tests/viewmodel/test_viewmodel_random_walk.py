@@ -7,7 +7,7 @@ import pytest
 
 from fakes import non_tof_source, small_demo
 from pet_projection_data_visualization.model import DIMENSIONS, SliceMode, TofMode
-from pet_projection_data_visualization.viewmodel import COLORMAPS, LevelMode, ViewerViewModel
+from pet_projection_data_visualization.viewmodel import COLORMAPS, LevelMode, PlayMode, ViewerViewModel
 
 
 def named_random_command(vm, rng):
@@ -21,6 +21,8 @@ def named_random_command(vm, rng):
         ("set_tof_mode", lambda: vm.pane.set_tof_mode(rng.choice(list(TofMode)))),
         ("set_playing", lambda: vm.pane.set_playing(rng.random() < 0.5)),
         ("toggle_play", lambda: vm.pane.toggle_play()),
+        ("toggle_play_axis", lambda: vm.pane.toggle_play_axis(dim)),
+        ("set_play_mode", lambda: vm.pane.set_play_mode(rng.choice(list(PlayMode)))),
         ("tick", lambda: vm.pane.tick()),
         ("set_fps", lambda: vm.pane.set_fps(rng.randint(-5, 60))),
         ("set_colormap", lambda: vm.pane.set_colormap(rng.choice(COLORMAPS))),
@@ -42,13 +44,17 @@ def random_command(vm, rng):
 def check_invariants(vm):
     sel, info = vm.pane.selection, vm.pane.dataset.info
     assert sel.is_valid_for(info)
-    for d in vm.pane.dimensions:
+    rows = vm.pane.axis_rows
+    assert [d.name for d in rows] == ["segment", sel.slice_mode.fixed_dimension] + (["tof"] if info.is_tof else [])
+    for d in rows:
         assert d.lo <= d.value <= d.hi and d.value == sel.get(d.name)
         assert not d.enabled or d.hi > d.lo
-    assert sum(1 for d in vm.pane.dimensions if d.enabled and d.name not in ("segment", "tof")) <= 1
-    assert vm.pane.can_play == (info.is_tof and sel.tof_mode is TofMode.BIN)
-    assert not vm.pane.playing or vm.pane.can_play
-    assert (vm.pane.tof_marker is not None) == vm.pane.can_play
+        assert d.can_play == (d.hi > d.lo and (d.name != "tof" or sel.tof_mode is TofMode.BIN))
+        assert d.playing == (vm.pane.play_axis == d.name)
+    assert vm.pane.playing == (vm.pane.play_axis is not None)
+    assert not vm.pane.playing or vm.pane.dimension(vm.pane.play_axis).can_play     # one axis, and a playable one
+    assert vm.pane.can_play == vm.pane.dimension(vm.pane.play_target).can_play
+    assert (vm.pane.tof_marker is not None) == (info.is_tof and sel.tof_mode is TofMode.BIN)
     assert 1 <= vm.pane.fps <= 30
     lo, hi = vm.pane.levels
     assert hi > lo

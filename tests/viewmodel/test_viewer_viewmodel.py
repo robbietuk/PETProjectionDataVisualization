@@ -22,7 +22,8 @@ def make_vm(source=None, load=True):
 # ---- before anything is loaded -------------------------------------------------------------
 def test_initial_state_is_empty_and_commands_are_harmless():
     vm, notes = make_vm(load=False)
-    assert not vm.loaded and vm.pane.image is None and vm.pane.dimensions == () and vm.pane.selection is None
+    assert not vm.loaded and vm.pane.image is None and vm.pane.axis_rows == () and vm.pane.selection is None
+    assert vm.pane.play_target is None
     vm.pane.set_value("axial", 3)
     vm.pane.step_active(1)
     vm.pane.set_slice_mode(SliceMode.VIEWGRAM)
@@ -42,9 +43,9 @@ def test_load_publishes_a_complete_state_in_one_notification():
     assert vm.load(small_demo())
     assert len(window_notes) == 1 and len(pane_notes) == 1          # one notification from each
     assert {"loaded", "window_title", "source_label"} <= window_notes[0]
-    assert {"image", "levels", "dimensions", "info_text", "title"} <= pane_notes[0]
+    assert {"image", "levels", "axis_rows", "info_text", "title"} <= pane_notes[0]
     assert vm.loaded and "demo" in vm.window_title and vm.error is None
-    assert [d.name for d in vm.pane.dimensions] == ["segment", "axial", "view", "tangential", "tof"]
+    assert [d.name for d in vm.pane.axis_rows] == ["segment", "axial", "tof"]
     assert vm.pane.tof_available and vm.pane.can_play and vm.pane.tof_marker == 2
     assert "Source:" in vm.pane.info_text and "Current slice" in vm.pane.info_text
 
@@ -85,26 +86,42 @@ def test_load_resets_selection_playback_and_profile():
     assert vm.pane.selection.segment == 0 and not vm.pane.playing and vm.pane.tof_profile is None and vm.pane.pixel_text == ""
 
 
-def test_loading_non_tof_data_disables_tof_controls():
+def test_loading_non_tof_data_has_no_tof_row_and_space_plays_the_fixed_axis():
     vm, _ = make_vm(non_tof_source())
-    assert not vm.pane.tof_available and not vm.pane.can_play and vm.pane.tof_marker is None
-    assert not vm.pane.dimension("tof").enabled
+    assert not vm.pane.tof_available and vm.pane.tof_marker is None
+    assert "tof" not in [r.name for r in vm.pane.axis_rows]
+    with pytest.raises(KeyError):
+        vm.pane.dimension("tof")
+    assert vm.pane.play_target == "axial" and vm.pane.can_play
+    axial = vm.pane.selection.axial
     vm.pane.set_playing(True)
     vm.pane.tick()
-    assert not vm.pane.playing
+    assert vm.pane.play_axis == "axial" and vm.pane.selection.axial == axial + 1
 
 
-# ---- dimensions ------------------------------------------------------------------------------------
-@pytest.mark.parametrize("mode,enabled", [
-    (SliceMode.SINOGRAM, {"segment", "axial", "tof"}),
-    (SliceMode.VIEWGRAM, {"segment", "view", "tof"}),
-    (SliceMode.TANGENTIAL, {"segment", "tangential", "tof"}),
+# ---- toolbar rows ------------------------------------------------------------------------------------
+@pytest.mark.parametrize("mode,rows", [
+    (SliceMode.SINOGRAM, ["segment", "axial", "tof"]),
+    (SliceMode.VIEWGRAM, ["segment", "view", "tof"]),
+    (SliceMode.TANGENTIAL, ["segment", "tangential", "tof"]),
 ])
-def test_only_relevant_dimensions_are_enabled(mode, enabled):
+def test_one_toolbar_row_per_axis_not_shown_in_the_image(mode, rows):
     vm, _ = make_vm()
     vm.pane.set_slice_mode(mode)
-    assert {d.name for d in vm.pane.dimensions if d.enabled} == enabled
+    assert [d.name for d in vm.pane.axis_rows] == rows
+    assert all(d.enabled and d.can_play for d in vm.pane.axis_rows)
     assert vm.pane.slice_mode is mode
+
+
+@pytest.mark.parametrize("mode,rows", [
+    (SliceMode.SINOGRAM, ["segment", "axial"]),
+    (SliceMode.VIEWGRAM, ["segment", "view"]),
+    (SliceMode.TANGENTIAL, ["segment", "tangential"]),
+])
+def test_non_tof_data_has_no_tof_row_in_any_image_type(mode, rows):
+    vm, _ = make_vm(non_tof_source())
+    vm.pane.set_slice_mode(mode)
+    assert [d.name for d in vm.pane.axis_rows] == rows
 
 
 def test_set_value_updates_slice_and_clamps():
@@ -135,13 +152,15 @@ def test_step_and_step_active():
     assert vm.pane.selection.segment == 1
 
 
-def test_dimensions_with_a_single_value_are_disabled():
+def test_rows_with_a_single_value_are_disabled_and_cannot_play():
     vm, _ = make_vm(non_tof_source())
-    assert not vm.pane.dimension("tof").enabled          # lo == hi
     assert vm.pane.dimension("segment").enabled
     one_segment, _ = make_vm(small_demo(num_segments=1))
-    assert one_segment.pane.dimension("segment").lo == one_segment.pane.dimension("segment").hi
-    assert not one_segment.pane.dimension("segment").enabled     # always "wanted", but nothing to scroll
+    seg = one_segment.pane.dimension("segment")
+    assert seg.lo == seg.hi and not seg.enabled and not seg.can_play     # always a row, but nothing to scroll
+    assert "only one segment" in seg.play_tip.lower()
+    one_segment.pane.toggle_play_axis("segment")
+    assert not one_segment.pane.playing
 
 
 # ---- slice and TOF modes ------------------------------------------------------------------------------
@@ -159,7 +178,9 @@ def test_tof_collapse_disables_play_and_marker():
     assert vm.pane.playing
     vm.pane.set_tof_mode(TofMode.SUM)
     assert not vm.pane.playing and not vm.pane.can_play and vm.pane.tof_marker is None
-    assert not vm.pane.dimension("tof").enabled and "sum over" in vm.pane.image.title.lower()
+    tof = vm.pane.dimension("tof")
+    assert not tof.enabled and not tof.can_play and "sum over" in vm.pane.image.title.lower()
+    assert "Sum" in tof.play_tip and "Bin" in tof.play_tip           # the tooltip says why, and what to do
     vm.pane.set_tof_mode(TofMode.BIN)
     assert vm.pane.can_play and vm.pane.tof_marker == vm.pane.selection.tof and vm.pane.dimension("tof").enabled
 

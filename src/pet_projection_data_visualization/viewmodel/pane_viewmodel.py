@@ -4,7 +4,11 @@
 
 A pane owns everything about the data set it shows: the selection (slice mode, indices, TOF mode),
 the display (colour map, log display, colour levels and their lock), the hover readout, the TOF
-profile and playback. It knows nothing about files or the window; the window-level view model
+profile and playback.
+
+The slice toolbar has one row (``axis_rows``) per axis not shown in the image: the segment, the fixed
+axis of the image type and, for TOF data, the TOF bin. Each row can play its axis; only one plays at a
+time (``play_axis``), and Space (``toggle_play``) plays or pauses the axis played last. It knows nothing about files or the window; the window-level view model
 hands it a ``ProjDataset`` with ``show_dataset`` and receives its status and error messages through
 the ``on_status``/``on_error`` callbacks. Several panes can later share one window (#20).
 """
@@ -17,12 +21,12 @@ from typing import Callable, Concatenate, ParamSpec, TypeVar
 import numpy as np
 import numpy.typing as npt
 
-from ..model import (ProjDataset, Selection, SliceImage, SliceMode, SliceStats, TofMode,
+from ..model import (ProjDataInfo, ProjDataset, Selection, SliceImage, SliceMode, SliceStats, TofMode,
                      finite_range)
-from ..model.selection import DIMENSIONS
 from . import formatting
 from .observable import Observed, ObservableObject
 from .options import COLORMAPS, LevelMode
+from .playback import PlayMode, next_play_value
 
 DIM_LABELS = {
     "segment": "Segment",
@@ -31,6 +35,7 @@ DIM_LABELS = {
     "tangential": "Tangential position",
     "tof": "TOF bin",
 }
+DIM_NOUNS = {dim: label if label.startswith("TOF") else label.lower() for dim, label in DIM_LABELS.items()}
 MIN_FPS, MAX_FPS = 1, 30
 
 MessageSink = Callable[[str], None]
@@ -40,14 +45,36 @@ _R = TypeVar("_R")
 
 
 @dataclass(frozen=True)
-class DimensionState:
-    """What one slider/spin-box pair should show."""
+class AxisRow:
+    """One row of the slice toolbar: an axis that is not shown in the image (the segment, the fixed axis
+    of the image type and, for TOF data, the TOF bin)."""
     name: str
     label: str
     lo: int
     hi: int
     value: int
-    enabled: bool
+    enabled: bool        # the value can be changed: more than one value and, for TOF, a single bin shown
+    can_play: bool
+    play_tip: str        # what the play button plays, or why it cannot
+    playing: bool        # this axis is the one playing
+
+
+def toolbar_axes(info: ProjDataInfo, sel: Selection) -> tuple[str, ...]:
+    """The axes with a toolbar row, in order: segment, the fixed axis of the image type, then TOF."""
+    return ("segment", sel.slice_mode.fixed_dimension) + (("tof",) if info.is_tof else ())
+
+
+def play_blocker(info: ProjDataInfo, sel: Selection, dim: str) -> str | None:
+    """Why ``dim`` cannot be played in ``sel``, or None if it can."""
+    if dim not in toolbar_axes(info, sel):
+        return f"{DIM_LABELS.get(dim, dim)} is an axis of the image"
+    lo, hi = sel.range(info, dim)
+    if hi <= lo:
+        return f"Only one {DIM_NOUNS[dim]}: nothing to play"
+    if dim == "tof" and sel.tof_mode is not TofMode.BIN:
+        how = sel.tof_mode.name.capitalize()
+        return f"The image shows the {how} over all TOF bins: choose Bin to play through the TOF bins"
+    return None
 
 
 @dataclass(frozen=True)
@@ -115,13 +142,16 @@ def _command(fn: Callable[Concatenate[ProjectionPaneViewModel, _P], _R]) -> Call
 class ProjectionPaneViewModel(ObservableObject):
     # ---- observable state (read-only for the view) --------------------------------
     title: Observed[str] = Observed("")              # name of the data set shown in this pane
-    dimensions: Observed[tuple[DimensionState, ...]] = Observed(())
+    axis_rows: Observed[tuple[AxisRow, ...]] = Observed(())   # the slice toolbar's rows, in order
     slice_mode: Observed[SliceMode] = Observed(SliceMode.SINOGRAM)
     tof_mode: Observed[TofMode] = Observed(TofMode.BIN)
     tof_available: Observed[bool] = Observed(False)
     tof_range: Observed[tuple[int, int] | None] = Observed(None)   # (first, last) TOF bin; None for non-TOF data
-    can_play: Observed[bool] = Observed(False)
+    can_play: Observed[bool] = Observed(False)       # Space (``toggle_play``) can play the axis played last
     playing: Observed[bool] = Observed(False)
+    play_axis: Observed[str | None] = Observed(None)   # the axis playing; only one plays at a time
+    play_mode: Observed[PlayMode] = Observed(PlayMode.LOOP)
+    space_hint: Observed[str] = Observed("")          # what Space does now, e.g. "Space plays TOF bin"
     fps: Observed[int] = Observed(4)
     tof_marker: Observed[int | None] = Observed(None)   # TOF bin to mark in the profile plot, or None
     colormap: Observed[str] = Observed(COLORMAPS[0])
@@ -149,6 +179,8 @@ class ProjectionPaneViewModel(ObservableObject):
         self._lock: _LevelLock | None = None      # set exactly when level_mode is LOCKED
         self._last_pixel: tuple[int, int] | None = None
         self._cursor: tuple[float, float] | None = None     # last hover position in axis coordinates
+        self._last_play_axis: str | None = None   # the axis whose play button was pressed last
+        self._play_direction = 1                  # +1 or -1; turns round at the ends in BOUNCE mode
 
     # ---- read access for tests and views --------------------------------------------
     @property
@@ -159,8 +191,25 @@ class ProjectionPaneViewModel(ObservableObject):
     def dataset(self) -> ProjDataset | None:
         return self._dataset
 
-    def dimension(self, name: str) -> DimensionState:
-        return next(d for d in self.dimensions if d.name == name)
+    def dimension(self, name: str) -> AxisRow:
+        """The toolbar row of axis ``name``; KeyError if it has none (an axis of the image, or no TOF)."""
+        for row in self.axis_rows:
+            if row.name == name:
+                return row
+        raise KeyError(name)
+
+    @property
+    def play_target(self) -> str | None:
+        """The axis Space plays: the one played last while it still has a toolbar row; otherwise TOF for
+        TOF data, else the fixed axis of the image type. None before data is loaded."""
+        current = self._current()
+        if current is None:
+            return None
+        dataset, sel = current
+        axes = toolbar_axes(dataset.info, sel)
+        if self._last_play_axis in axes:
+            return self._last_play_axis
+        return "tof" if "tof" in axes else sel.active_dimension
 
     # ---- commands --------------------------------------------------------------------
     @_command
@@ -174,7 +223,8 @@ class ProjectionPaneViewModel(ObservableObject):
         was_locked = self._lock is not None
         self._lock = None
         self.level_mode = LevelMode.ADAPTIVE
-        self.playing = False
+        self._set_play_axis(None)
+        self._last_play_axis = None
         self.title = dataset.info.name
         self.summary = formatting.dataset_summary(dataset.info)
         self.tof_available = dataset.info.is_tof
@@ -217,11 +267,29 @@ class ProjectionPaneViewModel(ObservableObject):
 
     @_command
     def set_playing(self, playing: bool) -> None:
-        self.playing = bool(playing) and self.can_play
+        """Play the axis Space plays (``play_target``), or pause whatever plays."""
+        if not playing:
+            self._set_play_axis(None)
+        elif (target := self.play_target) is not None:
+            self._start_playing(target)
 
     @_command
     def toggle_play(self) -> None:
+        """Space: pause, or play the axis played last."""
         self.set_playing(not self.playing)
+
+    @_command
+    def toggle_play_axis(self, dim: str) -> None:
+        """A row's play button: pause ``dim`` if it plays, otherwise play it instead of any other axis."""
+        if self.play_axis == dim:
+            self._set_play_axis(None)
+        else:
+            self._start_playing(dim)
+
+    @_command
+    def set_play_mode(self, mode: PlayMode) -> None:
+        """LOOP wraps round at the ends of the axis, BOUNCE turns round."""
+        self.play_mode = PlayMode(mode)
 
     @_command
     def set_show_tof_profile(self, shown: bool) -> None:
@@ -237,13 +305,18 @@ class ProjectionPaneViewModel(ObservableObject):
         """One playback step; the view calls this from its timer. Ignored unless ``playing``,
         so a stale timer event after pause/error/collapse does nothing."""
         current = self._current()
-        if current is None or not self.playing:
-            return
-        if not self.can_play:
-            self.playing = False
+        dim = self.play_axis
+        if current is None or dim is None:
             return
         dataset, sel = current
-        self._show(sel.step_tof(dataset.info, 1))
+        info = dataset.info
+        if play_blocker(info, sel, dim) is not None:
+            self._set_play_axis(None)
+            return
+        lo, hi = sel.range(info, dim)
+        value, direction = next_play_value(sel.get(dim), lo, hi, self._play_direction, self.play_mode)
+        if self._show(sel.with_value(info, dim, value)):
+            self._play_direction = direction
 
     @_command
     def set_colormap(self, name: str) -> None:
@@ -394,9 +467,9 @@ class ProjectionPaneViewModel(ObservableObject):
             dataset, _ = self._loaded()
             rendered = self._render(dataset, selection, self._lock)
         except Exception as exc:  # noqa: BLE001 - keep the previous picture, tell the user why
-            self.playing = False         # never keep playing into a stream of identical errors
+            self._set_play_axis(None)    # never keep playing into a stream of identical errors
             self._report_error(f"Could not read the slice: {exc}")
-            self._mark_changed("dimensions", "slice_mode", "tof_mode", "level_mode", "log_display")  # snap back
+            self._mark_changed("axis_rows", "slice_mode", "tof_mode", "level_mode", "log_display")  # snap back
             return False
         self._commit(dataset, selection, rendered)
         return True
@@ -407,11 +480,10 @@ class ProjectionPaneViewModel(ObservableObject):
         info = dataset.info
         self.slice_mode = sel.slice_mode
         self.tof_mode = sel.tof_mode
-        self.can_play = info.is_tof and sel.tof_mode is TofMode.BIN
-        if not self.can_play:
-            self.playing = False
-        self.tof_marker = sel.tof if self.can_play else None
-        self._refresh_dimensions()
+        self.tof_marker = sel.tof if info.is_tof and sel.tof_mode is TofMode.BIN else None
+        if self.play_axis is not None and play_blocker(info, sel, self.play_axis) is not None:
+            self._set_play_axis(None)     # e.g. TOF collapsed, or the playing axis is now an image axis
+        self._refresh_rows()
         image = rendered.image
         self._slice = image
         rows, cols = image.shape
@@ -430,16 +502,39 @@ class ProjectionPaneViewModel(ObservableObject):
         else:
             self.tof_profile = None
 
-    def _refresh_dimensions(self) -> None:
+    def _set_play_axis(self, dim: str | None) -> None:
+        self.play_axis = dim
+        self.playing = dim is not None
+        if self._current() is not None:
+            self._refresh_rows()          # each row shows whether it plays
+
+    def _start_playing(self, dim: str) -> None:
+        """Play ``dim`` (instead of any other axis) if it can be played; remember it for Space."""
+        current = self._current()
+        if current is None or play_blocker(current[0].info, current[1], dim) is not None:
+            return
+        self._last_play_axis = dim
+        self._play_direction = 1
+        self._set_play_axis(dim)
+
+    def _refresh_rows(self) -> None:
         dataset, sel = self._loaded()
         info = dataset.info
-        active = sel.active_dimension
-        states: list[DimensionState] = []
-        for dim in DIMENSIONS:
+        rows: list[AxisRow] = []
+        for dim in toolbar_axes(info, sel):
             lo, hi = sel.range(info, dim)
-            wanted = dim in ("segment", active) or (dim == "tof" and info.is_tof and sel.tof_mode is TofMode.BIN)
-            states.append(DimensionState(dim, DIM_LABELS[dim], lo, hi, sel.get(dim), wanted and hi > lo))
-        self.dimensions = tuple(states)
+            blocker = play_blocker(info, sel, dim)
+            enabled = hi > lo and (dim != "tof" or sel.tof_mode is TofMode.BIN)
+            tip = blocker if blocker is not None else f"Play through {DIM_NOUNS[dim]} {lo} to {hi}"
+            rows.append(AxisRow(dim, DIM_LABELS[dim], lo, hi, sel.get(dim), enabled, blocker is None, tip,
+                                self.play_axis == dim))
+        self.axis_rows = tuple(rows)
+        target = self.play_target
+        self.can_play = target is not None and play_blocker(info, sel, target) is None
+        if self.play_axis is not None:
+            self.space_hint = f"Space pauses the {DIM_NOUNS[self.play_axis]}"
+        elif target is not None:
+            self.space_hint = f"Space plays the {DIM_NOUNS[target]}"
 
     def _display_values(self, data: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         if self.log_display:
