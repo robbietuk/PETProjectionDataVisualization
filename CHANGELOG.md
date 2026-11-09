@@ -44,6 +44,9 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   `python -m pet_projection_data_visualization`, with `--version`, `--demo`, `--theme`,
   `--stir-path` and the old tool's `-f FILE`.
 - **Python API.** `launch(path | stir.ProjData | source)`, with `launch_GUI` kept as an alias.
+- **Cache budget.** `--cache-size MIB` (default 1024) and `launch(..., cache_bytes=...)` set one memory
+  budget shared by the cached segments, Sum/Mean/Max results and hovered sinograms, with least recently
+  used eviction. `scripts/measure_memory.py` measures peak memory on synthetic TOF data of realistic size.
 - **Versioning.** The version comes from the git tag through hatch-vcs: `v1.2.3` builds as `1.2.3`,
   and commits after a tag build as `1.2.4.devN+g<hash>`.
 - **Continuous integration** on GitHub Actions, modelled on STIR's own CI and run only on standard
@@ -76,6 +79,10 @@ These came out of two independent code reviews, before the split from STIR:
   has.
 - Hovering reads single sinograms instead of whole segments, and the segment cache is capped at
   about 1 GiB.
+- Memory on large TOF data: the raw and the Sum/Mean/Max caches each had their own 1 GiB, and the
+  hovered sinograms none. Sum/Mean/Max kept every TOF bin of a segment as well as the result, and
+  *Lock to global range* pushed the whole data set through the cache, evicting the segment on screen.
+  On 33-bin synthetic data the peak went from about 2.4 GiB to 1.1 GiB.
 - Two tests assumed POSIX paths and failed on Windows.
 - A PySide6 crash during interpreter shutdown no longer fails the Linux/Python 3.11 test run.
 - Python 3.11 with PySide6 6.12.0 on Linux aborted after a few seconds of playback ("deallocating None",
