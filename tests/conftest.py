@@ -9,6 +9,9 @@ from pet_projection_data_visualization._refcount_guard import protect_singletons
 
 _exit_status = 0
 
+# a hung test fails with a traceback instead of running into the CI job's timeout (see the module)
+pytest_plugins = ["_test_watchdog"]
+
 # PySide6 6.12.0 on Linux over-releases None/True/False; on Python 3.11 (not immortal yet) that aborts the
 # run with exit status 134. Same guard as the application uses in app.launch; see _refcount_guard.
 protect_singletons()
