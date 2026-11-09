@@ -1,6 +1,3 @@
-# Proposed workflow (issue #18). Agents may not change .github/workflows/, so this file lives here;
-# the maintainer adds it with:  git mv docs/workflows/stir-master.yml .github/workflows/stir-master.yml
-#
 # Weekly test against STIR master built from source, to catch STIR API changes before they reach a
 # conda-forge release. Same tests as stir.yml (pytest with real data, the no-skip check, the headless
 # smoke run), but STIR comes from a ccache-cached cmake build of UCL/STIR instead of conda-forge `stir`.

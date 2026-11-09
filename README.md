@@ -266,7 +266,7 @@ the recipe is accepted). The old tool is still part of STIR as `stir.projdata_vi
 * Memory: segments are cached up to about 1 GiB (plus up to 1 GiB of Sum/Mean/Max results); beyond that the least
   recently used ones are dropped and read again when needed. Hovering reads single sinograms (one per TOF bin),
   not whole segments.
-* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.14), and against real STIR from conda-forge.
+* Tested in CI with PySide6 >= 6.6 and pyqtgraph >= 0.13.7 on Linux, macOS and Windows (Python 3.11 to 3.15), and against real STIR from conda-forge (Python 3.11 to 3.14).
 * PySide6 6.12.0 on Linux gives back references to `None`, `True` and `False` that it never took (about 64 per
   repaint of the colour bar, measured on Python 3.11; 6.8.3 to 6.11.3, and 6.12.0 on macOS and Windows, are fine).
   From Python 3.12 those objects are immortal and nothing happens, but on Python 3.11 the viewer aborted after a few

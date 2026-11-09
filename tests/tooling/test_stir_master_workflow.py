@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The proposed STIR-master workflow (docs/workflows/stir-master.yml) and its tracking-issue helper."""
+"""The STIR-master workflow (.github/workflows/stir-master.yml) and its tracking-issue helper."""
 import os
 import pathlib
 import shutil
@@ -10,7 +10,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "ci_tracking_issue.sh"
-WORKFLOW = ROOT / "docs" / "workflows" / "stir-master.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "stir-master.yml"
 
 needs_bash = pytest.mark.skipif(shutil.which("bash") is None or sys.platform == "win32",
                                 reason="run by a bash step in CI")
