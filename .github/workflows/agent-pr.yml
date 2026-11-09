@@ -172,14 +172,19 @@ jobs:
               await sleep(60 * 1000);
             }
             const ok = ['success', 'skipped', 'neutral'];
-            const failed = checks.filter(c => c.status === 'completed' && !ok.includes(c.conclusion));
-            const unfinished = checks.filter(c => c.status !== 'completed');
+            // jobs marked "(allowed to fail)" (continue-on-error, e.g. the newest Python) never block
+            const optional = (c) => /\(allowed to fail\)\s*$/.test(c.name || '');
+            const failedAll = checks.filter(c => c.status === 'completed' && !ok.includes(c.conclusion));
+            const failed = failedAll.filter(c => !optional(c));
+            const unfinished = checks.filter(c => c.status !== 'completed' && !optional(c));
             const lines = [
               ...failed.map(c => `- FAILED: ${c.name} (${c.conclusion}) ${c.html_url}`),
               ...unfinished.map(c => `- NOT FINISHED: ${c.name} ${c.html_url}`),
+              ...failedAll.filter(optional).map(c => `- allowed to fail, not blocking: ${c.name} (${c.conclusion}) ${c.html_url}`),
             ];
             const summary = checks.length === 0 ? 'No other checks ran on this commit.'
-              : lines.length ? `${failed.length} of ${checks.length} checks failed:\n${lines.join('\n')}`
+              : failed.length || unfinished.length ? `${failed.length} of ${checks.length} checks failed:\n${lines.join('\n')}`
+              : lines.length ? `All required checks passed.\n${lines.join('\n')}`
               : `All ${checks.length} checks passed.`;
             core.setOutput('ok', String(failed.length === 0 && unfinished.length === 0));
             core.setOutput('summary', summary);
@@ -509,7 +514,7 @@ jobs:
             --model ${{ vars.AGENT_MODEL || 'claude-opus-5-5' }}
             --max-turns 200
             --permission-mode acceptEdits
-            --allowedTools "Read,Edit(./**),Glob,Grep,LS,TodoWrite,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git rm:*),Bash(git mv:*),Bash(git commit -m:*),Bash(git restore:*),Bash(git fetch:*),Bash(git merge:*),Bash(git push origin HEAD:${{ env.HEAD_REF }}),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(pre-commit:*),Bash(ruff:*),Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh run view:*)"
+            --allowedTools "Read,Edit(./**),Glob,Grep,LS,TodoWrite,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git rm:*),Bash(git mv:*),Bash(git commit:*),Bash(git restore:*),Bash(git fetch:*),Bash(git merge:*),Bash(git push origin HEAD:${{ env.HEAD_REF }}),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(pre-commit:*),Bash(ruff:*),Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh run view:*)"
             --disallowedTools "Bash(gh pr merge:*),Bash(gh api:*)"
 
       - name: Record the round

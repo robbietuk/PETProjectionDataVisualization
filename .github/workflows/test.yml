@@ -23,9 +23,20 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04, macos-latest, windows-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         pyside6: [""]           # "": whatever pip resolves from pyproject.toml
         include:
+          # The newest Python, allowed to fail until PySide6, numpy and pyqtgraph publish wheels for it.
+          # When it passes reliably: move it into python-version above and add its classifier.
+          - os: ubuntu-24.04
+            python-version: "3.15"
+            experimental: true
+          - os: macos-latest
+            python-version: "3.15"
+            experimental: true
+          - os: windows-latest
+            python-version: "3.15"
+            experimental: true
           # PySide6 6.12.0 over-releases None/True/False on Linux; pip will not pick it with Python 3.11
           # (pyproject.toml), so force it here to prove the start-up guard (_refcount_guard.py) holds.
           # A separate job: pyside6 differs from the "" above, so this include cannot merge into ubuntu/3.11.
@@ -34,7 +45,9 @@ jobs:
             pyside6: "6.12.0"
       # let's run all of them, as opposed to aborting when one fails (as in STIR)
       fail-fast: false
-    name: ${{ matrix.os }}-py${{ matrix.python-version }}${{ matrix.pyside6 && format('-pyside{0}', matrix.pyside6) || '' }}
+    name: ${{ matrix.os }}-py${{ matrix.python-version }}${{ matrix.pyside6 && format('-pyside{0}', matrix.pyside6) || '' }}${{ matrix.experimental && ' (allowed to fail)' || '' }}
+    # a failing experimental job shows as a warning and does not fail the workflow or block a merge
+    continue-on-error: ${{ matrix.experimental == true }}
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
@@ -45,6 +58,7 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        allow-prereleases: true # the newest Python may still be a release candidate
         cache: pip
 
     - name: Qt system libraries (Linux)
