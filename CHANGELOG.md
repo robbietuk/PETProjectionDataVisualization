@@ -72,6 +72,14 @@ under Unreleased below is the work since the viewer was split out of STIR's `exa
   opened this session and shows whether STIR was found and where. *Display* has a Dark | Light
   theme switch, in step with *View > Light theme*. *Settings* can hide the TOF profile plot and
   lists the keyboard shortcuts.
+- **Slice toolbar with per-axis play (#36, phase 3).** The toolbar under the image has image type
+  tabs (Sinogram | Viewgram | Tangential) and one compact row for each axis the image does not show:
+  the segment, the fixed axis of the image type and, for TOF data, the TOF bin, each with ‹ › step
+  buttons, a value box, a slider and its own play button. Any of these axes can be animated, not only
+  TOF; one plays at a time, and pressing another row's play switches to it. Space plays or pauses the
+  axis played last, and the toolbar says which. The TOF row holds Bin | Sum | Mean | Max; its play
+  button is disabled while TOF is collapsed, with a tooltip saying why. *Settings* chooses whether
+  playback loops round or bounces back at the end of an axis.
 
 ### Fixed
 
@@ -111,6 +119,11 @@ These came out of two independent code reviews, before the split from STIR:
   projection data pane, `ViewerViewModel.pane` (a `ProjectionPaneViewModel`); for example
   `vm.set_slice_mode(...)` is now `vm.pane.set_slice_mode(...)`. File loading, the window title,
   the status line and errors stay on `ViewerViewModel`.
+- **Breaking:** for code that drives the view model: the pane's `dimensions` (one `DimensionState`
+  per index) became `axis_rows`, one `AxisRow` per toolbar row, so it no longer lists the axes the
+  image shows (#36, phase 3). `set_playing(True)` and `toggle_play()` play the axis played last, which
+  may be any toolbar axis (`play_axis`), and `can_play` is now also true for non-TOF data. New
+  commands: `toggle_play_axis(dim)` and `set_play_mode(PlayMode.LOOP | PlayMode.BOUNCE)`.
 - Refreshed visual design: new light and dark palettes with one accent colour, flat cards with
   subtle borders, a clear type scale and more generous spacing; the plots share the card colour.
   Header chips are no longer clipped (a long data set title is shortened with "…" instead), and the

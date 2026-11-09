@@ -152,13 +152,18 @@ The image takes most of the window. Hovering an icon of the rail on the left (or
 short summary; clicking it (or Enter/Space) opens its flyout, which stays open until you click it again,
 click elsewhere or press Esc: *Data* (path box, Browse, Load, demo data, the files opened this session,
 and whether STIR was found), *Info* (the data set's metadata), *Display* (colour map, log display, theme,
-and for now the colour levels) and *Settings* (show or hide the TOF profile, animation speed, the keyboard
-shortcuts). The toolbar under the image holds the
-*Slice* controls (sinogram / viewgram / tangential slice and the indices) and *Time of flight*: a single
-bin (with Play) or Sum / Mean / Max over all bins. Hovering shows the value and the bin indices under the
-image, and (for TOF data) the counts-versus-TOF-bin profile of the LOR under the cursor in the plot column
-on the right.
-Keys: Space play/pause, Left/Right step the active index, PgUp/PgDn change segment, L lock/unlock the colour
+and for now the colour levels) and *Settings* (show or hide the TOF profile, animation speed, loop or
+bounce at the end of an axis, the keyboard shortcuts). The slice toolbar under the image has the image
+type tabs (Sinogram | Viewgram | Tangential) on the left and, on the right, one row for each axis the
+image does not show: the segment, the fixed axis (axial position for a sinogram, view for a viewgram,
+tangential position for a tangential slice) and, for TOF data, the TOF bin. Each row has ‹ › step
+buttons, a value box, a slider and its own play button; only one axis plays at a time, so pressing
+another row's play switches to it. The TOF row also chooses a single bin or Sum / Mean / Max over all
+bins; while TOF is collapsed its play button is disabled, and its tooltip says why. Hovering shows the
+value and the bin indices under the image, and (for TOF data) the counts-versus-TOF-bin profile of the
+LOR under the cursor in the plot column on the right.
+Keys: Space plays or pauses the axis played last (TOF at first for TOF data, otherwise the fixed axis;
+the toolbar says which), Left/Right step the fixed axis, PgUp/PgDn change segment, L lock/unlock the colour
 levels, Esc close the open flyout (*Settings* lists these keys). When a slider, spin box or text field has the keyboard focus, these keys go to it instead (e.g. Right on
 the segment slider moves the segment, L typed in the path box is just a letter). Min/Max level accept any number,
 including scientific notation such as `2.5e-8`.
@@ -194,7 +199,7 @@ stir module ─▶ stir_interface ─▶ model ◀─ viewmodel ◀─ view (PyS
 | `model/` | numpy only | `ProjDataInfo`, immutable `Selection`, `ProjDataset` (slices, TOF reduction, caches, stats) |
 | `sources/` | model | numpy `.npy/.npz` source, synthetic TOF demo, `make_source` |
 | `stir_interface/` | model, `stir` | `StirGateway`/`StirProjDataHandle` protocols, `SwigStirGateway` (the only file importing `stir`), `StirProjDataSource` adapter |
-| `viewmodel/` | model | `ViewerViewModel` (files, title, status, errors) owning a `ProjectionPaneViewModel` (`vm.pane`: everything about the data set on screen): observable properties + command methods, formatting; shared `ChoiceOptions` and `BindingRegistry`; no Qt |
+| `viewmodel/` | model | `ViewerViewModel` (files, title, status, errors) owning a `ProjectionPaneViewModel` (`vm.pane`: everything about the data set on screen): observable properties + command methods, formatting, playback steps (`playback.py`); shared `ChoiceOptions` and `BindingRegistry`; no Qt |
 | `view/` | viewmodel, Qt | `ViewerWindow` arranges the icon rail (`rail.py`), the self-contained `ProjectionDataPane` (`pane.py`: image, colour bar, readout, profile plots) and the slice toolbar, built from reusable `components`; `theme` (colour scheme) is Qt-free; knows nothing about sources or STIR |
 | `app.py` | everything | composition root: wires loader, demo data, the STIR probe, view model and window |
 
@@ -212,7 +217,7 @@ Shared component logic lives in two places: Qt-free `viewmodel/options.py` (`Cho
 the labels/order of slice modes, TOF modes, level modes and colour maps) and `viewmodel/bindings.py`
 (`BindingRegistry`: declarative property -> widget bindings, each run once per command), and Qt
 `view/components.py` (`SegmentedControl` and `ChoiceCombo` share one `ChoiceControl` contract; `Card`,
-`LabeledRow`, `ChipRow`, `MetricGrid`, `Banner`, `EmptyState`, `DimensionControl`). Errors appear in an inline,
+`LabeledRow`, `ChipRow`, `MetricGrid`, `Banner`, `EmptyState`, `AxisRowControl`). Errors appear in an inline,
 dismissable banner instead of a modal dialog, and an empty state is shown until data is loaded.
 
 ## Tests
